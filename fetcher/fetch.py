@@ -85,12 +85,6 @@ class Fetcher:
                 if attempt == max_retries - 1:
                     return -2
                 continue
-
-    def save_json(self, data, filename="tmp.json"):
-        """保存 JSON 数据到文件"""
-        filepath = Path(__file__).parent.parent / filename
-        with open(filepath, "w", encoding="utf-8") as f:
-            json.dump(data, f, ensure_ascii=False, indent=4)
     
     async def _fetch_single_device(self, detail, session, site_name):
         """异步获取单个设备的数据，包含站点信息"""
@@ -256,11 +250,6 @@ class Fetcher:
                     "site_error": stats["site_error"]
                 }
                 info.append(site_info)
-            
-            # 保存旧格式（向后兼容）
-            self.save_json(info, "full_fetch_result.json")
-            logger.info(f"完整抓取成功，共 {len(site_stats)} 个站点")
-            print("Full fetch completed successfully.")
             
             # 返回包含详细信息的格式
             return {
