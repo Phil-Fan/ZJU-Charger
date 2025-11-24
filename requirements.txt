@@ -1,0 +1,6 @@
+aiohttp
+DingtalkChatbot
+fastapi
+uvicorn
+python-dotenv
+httpx 

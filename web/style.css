@@ -1,0 +1,273 @@
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    background-color: #f5f5f5;
+    color: #333;
+}
+
+.container {
+    max-width: 1400px;
+    margin: 0 auto;
+    padding: 20px;
+}
+
+header {
+    background: white;
+    padding: 20px;
+    border-radius: 8px;
+    margin-bottom: 20px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+}
+
+header h1 {
+    font-size: 24px;
+    color: #1890ff;
+}
+
+.header-info {
+    display: flex;
+    align-items: center;
+    gap: 15px;
+    flex-wrap: wrap;
+}
+
+.campus-selector {
+    display: flex;
+    gap: 8px;
+}
+
+.campus-btn {
+    background: #f0f0f0;
+    color: #333;
+    border: 1px solid #d9d9d9;
+    padding: 6px 12px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 14px;
+    transition: all 0.3s;
+}
+
+.campus-btn:hover {
+    background: #e6f7ff;
+    border-color: #1890ff;
+    color: #1890ff;
+}
+
+.campus-btn.active {
+    background: #1890ff;
+    color: white;
+    border-color: #1890ff;
+}
+
+#update-time {
+    color: #666;
+    font-size: 14px;
+}
+
+.refresh-btn {
+    background: #1890ff;
+    color: white;
+    border: none;
+    padding: 8px 16px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 14px;
+    transition: background 0.3s;
+}
+
+.refresh-btn:hover {
+    background: #40a9ff;
+}
+
+.refresh-btn:active {
+    background: #096dd9;
+}
+
+.main-content {
+    display: grid;
+    grid-template-columns: 1fr 400px;
+    gap: 20px;
+}
+
+.map-container {
+    background: white;
+    border-radius: 8px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    overflow: hidden;
+}
+
+#map {
+    width: 100%;
+    height: 600px;
+}
+
+.list-container {
+    background: white;
+    border-radius: 8px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    padding: 20px;
+    overflow-y: auto;
+    max-height: 600px;
+}
+
+.list-container h2 {
+    font-size: 18px;
+    margin-bottom: 15px;
+    color: #333;
+}
+
+.loading {
+    text-align: center;
+    padding: 20px;
+    color: #999;
+}
+
+.station-list {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.station-item {
+    padding: 15px;
+    border: 1px solid #e8e8e8;
+    border-radius: 6px;
+    background: #fafafa;
+    transition: all 0.3s;
+    cursor: pointer;
+}
+
+.station-item:hover {
+    border-color: #1890ff;
+    background: #f0f7ff;
+    transform: translateX(4px);
+}
+
+.station-item.no-free {
+    opacity: 0.6;
+}
+
+.station-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 8px;
+    gap: 8px;
+}
+
+.station-name {
+    font-weight: 600;
+    font-size: 16px;
+    color: #333;
+}
+
+.station-status {
+    padding: 4px 8px;
+    border-radius: 4px;
+    font-size: 12px;
+    font-weight: 600;
+}
+
+.station-status.free {
+    background: #52c41a;
+    color: white;
+}
+
+.station-status.low {
+    background: #faad14;
+    color: white;
+}
+
+.station-status.none {
+    background: #ff4d4f;
+    color: white;
+}
+
+.station-info {
+    display: flex;
+    gap: 15px;
+    font-size: 14px;
+    color: #666;
+}
+
+.station-info span {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.heart-icon {
+    font-size: 18px;
+    cursor: pointer;
+    user-select: none;
+    transition: transform 0.2s;
+    flex-shrink: 0;
+    padding: 2px;
+    line-height: 1;
+}
+
+.heart-icon:hover {
+    transform: scale(1.2);
+}
+
+.heart-icon.watched {
+    animation: heartBeat 0.3s ease-in-out;
+}
+
+@keyframes heartBeat {
+    0% {
+        transform: scale(1);
+    }
+    50% {
+        transform: scale(1.3);
+    }
+    100% {
+        transform: scale(1);
+    }
+}
+
+.error-message {
+    background: #fff2f0;
+    border: 1px solid #ffccc7;
+    color: #a8071a;
+    padding: 15px;
+    border-radius: 6px;
+    text-align: center;
+}
+
+/* 响应式设计 */
+@media (max-width: 1024px) {
+    .main-content {
+        grid-template-columns: 1fr;
+    }
+    
+    #map {
+        height: 400px;
+    }
+    
+    .list-container {
+        max-height: none;
+    }
+}
+
+@media (max-width: 768px) {
+    header {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 15px;
+    }
+    
+    .header-info {
+        width: 100%;
+        justify-content: space-between;
+    }
+}

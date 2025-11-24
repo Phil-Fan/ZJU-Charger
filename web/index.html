@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ZJU 充电桩状态</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>ZJU 充电桩状态</h1>
+            <div class="header-info">
+                <div class="campus-selector">
+                    <button id="campus-all" class="campus-btn active" data-areaid="">全部</button>
+                    <button id="campus-yuquan" class="campus-btn" data-areaid="2143">玉泉校区</button>
+                    <button id="campus-zjg" class="campus-btn" data-areaid="1774">紫金港校区</button>
+                </div>
+                <span id="update-time">加载中...</span>
+                <button id="refresh-btn" class="refresh-btn">刷新</button>
+            </div>
+        </header>
+        
+        <div class="main-content">
+            <div class="map-container">
+                <div id="map"></div>
+            </div>
+            
+            <div class="list-container">
+                <h2>站点列表</h2>
+                <div id="loading" class="loading">加载中...</div>
+                <div id="station-list" class="station-list"></div>
+            </div>
+        </div>
+    </div>
+    
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="leaflet-coord-transform.js"></script>
+    <script src="script.js"></script>
+</body>
+</html>
