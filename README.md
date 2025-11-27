@@ -1,6 +1,6 @@
 # ZJU Charger
 
-> 基于 FastAPI 的浙江大学充电桩状态查询系统，根据尼普顿提供的 API 接口，实现充电桩状态查询、关注列表、钉钉机器人交互等功能。
+> 基于 FastAPI 的浙江大学充电桩状态查询系统，支持多个充电桩服务商（当前支持尼普顿），实现充电桩状态查询、关注列表、钉钉机器人交互等功能。
 
 免责声明：本项目仅用于个人学习交流，不得用于商业用途。使用本项目所造成的任何后果，由使用者自行承担。
 
@@ -13,11 +13,14 @@ flowchart TD
 
     B["本地网页<br/>index.html<br/>(AJAX)"]
 
-    C["FastAPI API 服务<br/>/api/status 实时查询"]
+    C["FastAPI API 服务<br/>/api/status 实时查询<br/>支持多服务商筛选"]
 
     D["钉钉机器人<br/>查询 / 关注 / 全部"]
 
-    E["Fetcher<br/>实时抓取"]
+    E["ProviderManager<br/>服务商管理器"]
+
+    F1["NeptuneProvider<br/>尼普顿服务商"]
+    F2["其他服务商<br/>可扩展..."]
 
     %% 连接关系
     A --> |查询| C
@@ -27,17 +30,24 @@ flowchart TD
     D --> |webhook| C
 
     C --> |使用数据| E
-    E --> |实时数据写入| C
+    E --> |管理| F1
+    E --> |管理| F2
+    F1 --> |实时抓取| E
+    F2 --> |实时抓取| E
+
 ```
 
-所有查询来源（网页、钉钉、GitHub Action）都调用统一 API 和 Fetcher，逻辑完全不重复。
+所有查询来源（网页、钉钉、GitHub Action）都调用统一 API 和 ProviderManager，逻辑完全不重复。系统采用多服务商架构，支持同时显示和筛选多个服务商的充电桩数据。
 
 ## 功能特性
 
 - [x] 异步并发抓取，大幅提升查询速度
 - [x] FastAPI 统一 API 接口
+- [x] 多服务商架构支持，可同时显示和筛选多个服务商数据
 - [x] 网页地图可视化（Leaflet）
 - [x] 支持高德地图、OpenStreetMap 三种地图
+- [x] 服务商筛选功能（前端下拉框）
+- [x] 校区筛选功能（玉泉、紫金港）
 - [ ] 使用 ChinaTMSProviders 插件，支持多种地图
 - [ ] 钉钉机器人交互（查询/关注/全部）
 - [ ] GitHub Action 自动定时抓取
@@ -52,27 +62,87 @@ flowchart TD
 ```text
 project/
 ├── fetcher/
-│   └── fetch.py          # 统一抓取逻辑（异步）
+│   ├── provider_base.py      # 服务商抽象基类
+│   ├── provider_manager.py   # 服务商管理器
+│   ├── providers/
+│   │   └── neptune.py        # 尼普顿服务商实现
+│   └── fetch.py              # 统一抓取逻辑（异步，已废弃）
 ├── server/
-│   ├── api.py            # FastAPI 主服务
-│   ├── storage.py        # 数据存储管理
-│   └── config.py         # 环境变量配置
+│   ├── api.py                # FastAPI 主服务
+│   ├── storage.py            # 数据存储管理
+│   ├── config.py             # 环境变量配置（支持服务商配置）
+│   └── station_loader.py     # 站点信息加载器
 ├── ding/
-│   ├── bot.py            # 钉钉机器人封装
-│   ├── webhook.py        # 钉钉 webhook 路由
-│   └── commands.py       # 命令解析和执行
-├── web/                  # 前端文件
-│   ├── index.html        # 地图 + 列表页面
-│   ├── script.js         # 前端逻辑
-│   └── style.css         # 样式文件
-├── data/                 # 数据目录
-│   ├── latest.json       # 最新状态缓存
-│   └── watchlist.json    # 用户关注列表
-├── script/               # iOS 快捷指令
-│   ├── README.md         # 快捷指令使用说明
-│   └── *.shortcut        # 快捷指令文件
-├── main.py               # 独立运行脚本（向后兼容）
-└── requirements.txt      # 依赖库
+│   ├── bot.py                # 钉钉机器人封装
+│   ├── webhook.py            # 钉钉 webhook 路由
+│   └── commands.py           # 命令解析和执行
+├── web/                      # 前端文件
+│   ├── index.html            # 地图 + 列表页面（支持服务商筛选）
+│   ├── script.js             # 前端逻辑（支持多服务商）
+│   └── style.css             # 样式文件
+├── data/                     # 数据目录
+│   ├── latest.json           # 最新状态缓存（统一格式，包含 provider_id）
+│   ├── stations.json          # 站点信息（包含 campus 字段）
+│   └── watchlist.json        # 用户关注列表
+├── script/                   # iOS 快捷指令
+│   ├── README.md             # 快捷指令使用说明
+│   └── *.shortcut            # 快捷指令文件
+├── run_server.py             # 服务器启动脚本
+├── quick_query.py            # 快速查询脚本
+└── requirements.txt         # 依赖库
+```
+
+## 多服务商架构
+
+### 架构设计
+
+系统采用多服务商架构，支持同时接入多个充电桩服务商：
+
+1. **ProviderBase** (`fetcher/provider_base.py`): 服务商抽象基类，定义统一接口
+2. **ProviderManager** (`fetcher/provider_manager.py`): 服务商管理器，负责注册、管理和调用所有服务商
+3. **Provider 实现** (`fetcher/providers/`): 各服务商的具体实现
+
+### 数据结构
+
+#### 统一站点数据结构
+
+每个站点数据包含以下字段：
+
+```python
+{
+    "provider_id": "neptune",      # 服务商标识
+    "provider_name": "尼普顿",     # 服务商显示名称
+    "id": "站点唯一ID",
+    "name": "站点名称",
+    "devids": [devid1, devid2],
+    "lat": 30.27,
+    "lon": 120.12,
+    "free": 5,
+    "total": 10,
+    "used": 4,
+    "error": 1,
+    "campus": 2143  # 校区ID（原 areaid，已统一改为 campus）
+}
+```
+
+#### 数据存储格式
+
+`latest.json` 格式：
+
+```json
+{
+    "updated_at": "2025-01-01T00:00:00+08:00",
+    "stations": [
+        {
+            "provider_id": "neptune",
+            "provider_name": "尼普顿",
+            "id": "站点1",
+            "name": "站点名称1",
+            "campus": 2143,
+            ...
+        }
+    ]
+}
 ```
 
 ## 快速开始
@@ -114,6 +184,10 @@ DINGTALK_SECRET=your_secret_here
 # API 服务器配置
 API_HOST=0.0.0.0 # 服务器地址
 API_PORT=8000 # 服务器端口
+
+# 数据抓取配置
+FETCH_INTERVAL=60 # 前端自动刷新间隔（秒），默认60秒
+BACKEND_FETCH_INTERVAL=300 # 后端定时抓取间隔（秒），默认300秒（5分钟）
 ```
 
 参数获取方法：通过抓包获取微信小程序中的请求参数。
