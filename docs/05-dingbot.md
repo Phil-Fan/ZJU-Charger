@@ -60,7 +60,7 @@ python run_server.py
 
 在钉钉群聊中直接发送命令文本即可：
 
-```
+```text
 全部
 ```
 
@@ -74,7 +74,7 @@ python run_server.py
 
 示例响应：
 
-```
+```text
 # 全部站点状态
 
 **更新时间**: 2025-01-01 12:00:00
@@ -94,7 +94,7 @@ python run_server.py
 
 ### Webhook 端点
 
-```
+```html
 POST /ding/webhook
 ```
 
@@ -112,7 +112,7 @@ POST /ding/webhook
 }
 ```
 
-### 响应格式
+### 响应的格式
 
 ```json
 {
@@ -159,7 +159,7 @@ DINGTALK_WEBHOOK=https://oapi.dingtalk.com/robot/send?access_token=xxx
 
 ## 代码结构
 
-```
+```text
 ding/
 ├── bot.py          # 钉钉机器人封装类
 ├── commands.py     # 命令解析和执行
@@ -207,37 +207,37 @@ result = await execute_all_command()
 
 1. 在 `ding/commands.py` 中添加命令解析：
 
-```python
-async def parse_command(text):
-    text = text.strip()
-    
-    if text == "全部":
-        return ("all", None)
-    elif text.startswith("查询"):
-        # 解析查询参数
-        site_name = text[2:].strip()
-        return ("query", {"site_name": site_name})
-    else:
-        return ("unknown", None)
-```
+    ```python
+    async def parse_command(text):
+        text = text.strip()
+        
+        if text == "全部":
+            return ("all", None)
+        elif text.startswith("查询"):
+            # 解析查询参数
+            site_name = text[2:].strip()
+            return ("query", {"site_name": site_name})
+        else:
+            return ("unknown", None)
+    ```
 
 2. 添加命令执行函数：
 
-```python
-async def execute_query_command(site_name):
-    """执行查询命令"""
-    # 实现查询逻辑
-    pass
-```
+    ```python
+    async def execute_query_command(site_name):
+        """执行查询命令"""
+        # 实现查询逻辑
+        pass
+    ```
 
 3. 在 `ding/webhook.py` 中处理新命令：
 
-```python
-if command_type == "all":
-    result = await execute_all_command()
-elif command_type == "query":
-    result = await execute_query_command(args["site_name"])
-```
+    ```python
+    if command_type == "all":
+        result = await execute_all_command()
+    elif command_type == "query":
+        result = await execute_query_command(args["site_name"])
+    ```
 
 ## 故障排查
 
@@ -269,39 +269,39 @@ elif command_type == "query":
 
 1. **查看日志**
 
-```bash
-# 查看服务器日志
-tail -f logs/server.log
+    ```bash
+    # 查看服务器日志
+    tail -f logs/server.log
 
-# 或查看控制台输出
-python run_server.py --log-level DEBUG
-```
+    # 或查看控制台输出
+    python run_server.py --log-level DEBUG
+    ```
 
 2. **测试 Webhook**
 
-使用 curl 测试 Webhook：
+    使用 curl 测试 Webhook：
 
-```bash
-curl -X POST http://localhost:8000/ding/webhook \
-  -H "Content-Type: application/json" \
-  -H "timestamp: 1234567890" \
-  -H "sign: your_sign" \
-  -d '{
-    "msgtype": "text",
-    "text": {
-      "content": "全部"
-    }
-  }'
-```
+    ```bash
+    curl -X POST http://localhost:8000/ding/webhook \
+      -H "Content-Type: application/json" \
+      -H "timestamp: 1234567890" \
+      -H "sign: your_sign" \
+      -d '{
+        "msgtype": "text",
+        "text": {
+          "content": "全部"
+        }
+      }'
+    ```
 
 3. **检查配置**
 
-```python
-from server.config import Config
+    ```python
+    from server.config import Config
 
-print(f"Webhook: {Config.DINGTALK_WEBHOOK}")
-print(f"Secret: {Config.DINGTALK_SECRET}")
-```
+    print(f"Webhook: {Config.DINGTALK_WEBHOOK}")
+    print(f"Secret: {Config.DINGTALK_SECRET}")
+    ```
 
 ## 最佳实践
 
@@ -335,4 +335,3 @@ API_URL=http://your-api-server.com:8000
 1. 在钉钉群聊中发送「全部」
 2. 机器人返回所有站点状态
 3. 查看 Markdown 格式的响应消息
-

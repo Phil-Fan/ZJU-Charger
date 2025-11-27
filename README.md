@@ -48,9 +48,15 @@ flowchart TD
 - [x] 前端关注列表功能
 - [ ] 钉钉机器人交互
 
+网页效果：
+
 ![web](assets/web.png)
 
+快捷指令效果：
+
 ![shortcut](assets/shortcut.png)
+
+钉钉机器人效果：
 
 ## 项目结构
 
