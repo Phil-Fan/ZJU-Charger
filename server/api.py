@@ -24,7 +24,7 @@ from server.storage import (
     load_watchlist, get_watchlist_devids, get_watchlist_devdescripts,
     add_to_watchlist, remove_from_watchlist, is_in_watchlist
 )
-from server.station_loader import refresh_stations
+from server.station_loader import load_stations
 from ding.webhook import router as ding_router
 
 app = FastAPI(title="ZJU Charger API", version="1.0.0")
@@ -34,16 +34,19 @@ logger.info("初始化 FastAPI 应用")
 @app.on_event("startup")
 async def startup_event():
     """服务器启动时执行的操作"""
-    logger.info("服务器启动事件：开始刷新站点信息...")
+    logger.info("服务器启动事件：检查站点信息文件...")
     try:
-        success = await refresh_stations()
-        if success:
-            logger.info("站点信息刷新成功")
+        stations_data = load_stations()
+        if stations_data:
+            station_count = len(stations_data.get('stations', []))
+            updated_at = stations_data.get('updated_at', '未知')
+            logger.info(f"已加载站点信息文件，共 {station_count} 个站点，更新时间: {updated_at}")
         else:
-            logger.warning("站点信息刷新失败，将使用已存在的缓存文件（如果存在）")
+            logger.warning("站点信息文件不存在或加载失败")
+            logger.warning("请运行 'python update_stations.py' 来更新站点信息")
     except Exception as e:
-        logger.error(f"启动时刷新站点信息失败: {str(e)}", exc_info=True)
-        logger.warning("服务器将继续启动，但站点信息可能不是最新的")
+        logger.error(f"启动时检查站点信息失败: {str(e)}", exc_info=True)
+        logger.warning("服务器将继续启动，但站点信息可能不可用")
 
 # 添加 CORS 支持（必须在路由之前）
 app.add_middleware(
