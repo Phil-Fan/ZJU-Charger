@@ -1,10 +1,11 @@
 """站点信息加载模块：从 API 获取站点列表并保存"""
-import aiohttp
 import json
 import logging
 from pathlib import Path
 from datetime import datetime, timezone, timedelta
+from typing import List, Dict, Any, Optional
 from server.config import Config
+from fetcher.provider_manager import ProviderManager
 
 logger = logging.getLogger(__name__)
 
@@ -20,84 +21,127 @@ def _get_timestamp():
     tz_utc_8 = timezone(timedelta(hours=8))
     return datetime.now(tz_utc_8).isoformat()
 
-async def fetch_stations_from_api(openid, center_lat=30.27, center_lon=120.12):
-    """从 API 获取站点列表
+async def fetch_stations_from_providers(openid: str) -> Optional[List[Dict[str, Any]]]:
+    """从所有服务商获取站点列表
+    
+    通过获取站点状态数据，从中提取站点基础信息
+    注意：需要从现有的 stations.json 中获取 simDevaddress（如果存在）
     
     Args:
         openid: 微信 openId
-        center_lat: 中心点纬度（默认玉泉校区）
-        center_lon: 中心点经度（默认玉泉校区）
     
     Returns:
-        站点列表，如果失败返回 None
+        站点列表，格式与 stations.json 兼容，如果失败返回 None
     """
-    api_address = "http://www.szlzxn.cn/wxn/getStationList"
-    headers = {
-        "User-Agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 18_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148 MicroMessenger/8.0.60(0x18003c2f) NetType/WIFI Language/zh_CN",
-        "Host": "www.szlzxn.cn",
-        "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8"
-    }
-    
-    params = {
-        "openId": openid,
-        "latitude": center_lat,
-        "longitude": center_lon,
-        "areaid": 6,  # 玉泉校区 areaid
-        "devtype": 0
-    }
-    
-    timeout = aiohttp.ClientTimeout(total=10)
-    
     try:
-        async with aiohttp.ClientSession() as session:
-            async with session.post(
-                api_address,
-                headers=headers,
-                data=params,
-                timeout=timeout
-            ) as response:
-                if response.status != 200:
-                    logger.error(f"API 返回状态码: {response.status}")
-                    return None
+        manager = ProviderManager(openid)
+        
+        # 加载现有的 stations.json（如果存在），用于获取 simDevaddress
+        existing_stations_map = {}
+        if STATIONS_FILE.exists():
+            try:
+                with open(STATIONS_FILE, "r", encoding="utf-8") as f:
+                    existing_data = json.load(f)
+                    for station in existing_data.get("stations", []):
+                        devaddress = station.get("devaddress")
+                        if devaddress:
+                            existing_stations_map[devaddress] = station
+                logger.info(f"加载了 {len(existing_stations_map)} 个现有站点信息（用于获取 simDevaddress）")
+            except Exception as e:
+                logger.warning(f"加载现有站点信息失败: {e}，将使用空值")
+        
+        # 获取所有服务商的数据
+        providers_data = await manager.fetch_all_providers()
+        
+        # 收集所有站点的基础信息
+        all_stations = []
+        
+        for provider_id, result in providers_data.items():
+            if result["status"] != "success" or result["data"] is None:
+                logger.warning(f"服务商 {provider_id} 数据获取失败: {result.get('error')}")
+                continue
+            
+            provider = manager.get_provider(provider_id)
+            if provider is None:
+                continue
+            
+            site_stats = result["data"].get("site_stats", {})
+            
+            # 从每个站点的状态数据中提取基础信息
+            for site_name, stats in site_stats.items():
+                devices = stats.get("devices", [])
+                if not devices:
+                    continue
                 
-                data = await response.json()
-                
-                if not data.get("success"):
-                    logger.error(f"API 返回错误: {data.get('msg', '未知错误')}")
-                    return None
-                
-                stations = data.get("obj", [])
-                logger.info(f"成功获取 {len(stations)} 个站点")
-                return stations
-                
+                # 收集该站点的所有设备信息
+                for device in devices:
+                    devaddress = device.get("devaddress")
+                    
+                    # 尝试从现有站点信息中获取 simDevaddress
+                    sim_devaddress = ""
+                    if devaddress and devaddress in existing_stations_map:
+                        sim_devaddress = existing_stations_map[devaddress].get("simDevaddress", "")
+                    
+                    station_info = {
+                        "devid": device.get("devid"),
+                        "devaddress": devaddress,
+                        "campus": stats.get("areaid"),  # 使用 campus 字段（原 areaid）
+                        "devdescript": site_name,  # 使用站点名称作为 devdescript
+                        "longitude": device.get("longitude"),
+                        "latitude": device.get("latitude"),
+                        "simDevaddress": sim_devaddress,
+                        "provider_id": provider_id,  # 添加服务商信息
+                        "provider_name": provider.provider_name
+                    }
+                    
+                    # 验证必需字段
+                    if all([station_info["devid"] is not None, 
+                            station_info["devaddress"], 
+                            station_info["longitude"], 
+                            station_info["latitude"]]):
+                        all_stations.append(station_info)
+                    else:
+                        logger.warning(f"跳过无效站点设备: {station_info}")
+        
+        logger.info(f"成功从 {len(providers_data)} 个服务商获取 {len(all_stations)} 个站点设备")
+        return all_stations
+        
     except Exception as e:
         logger.error(f"获取站点列表失败: {str(e)}", exc_info=True)
         return None
 
-def extract_station_info(stations):
-    """提取站点关键信息
+def extract_station_info(stations: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """提取站点关键信息并转换为 stations.json 格式
     
     Args:
-        stations: API 返回的站点列表
+        stations: 从服务商获取的站点列表（包含 provider_id, provider_name, campus）
     
     Returns:
-        提取后的站点信息列表
+        提取后的站点信息列表（stations.json 格式，保留 areaid 以兼容旧代码）
     """
     extracted = []
     
     for station in stations:
+        # 转换为 stations.json 格式
+        # 注意：stations.json 中仍使用 areaid 字段以保持兼容性
         info = {
             "devid": station.get("devid"),
             "devaddress": station.get("devaddress"),
-            "areaid": station.get("areaid"),
+            "areaid": station.get("campus"),  # campus 转换为 areaid（兼容旧格式）
             "devdescript": station.get("devdescript", ""),
             "longitude": station.get("longitude"),
             "latitude": station.get("latitude"),
-            "simDevaddress": station.get("simDevaddress", "")
+            "simDevaddress": station.get("simDevaddress", ""),
+            # 可选：添加服务商信息（如果 stations.json 需要支持多服务商）
+            "provider_id": station.get("provider_id"),
+            "provider_name": station.get("provider_name")
         }
         
         # 验证必需字段
-        if all([info["devid"], info["devaddress"], info["longitude"], info["latitude"]]):
+        if all([info["devid"] is not None, 
+                info["devaddress"], 
+                info["longitude"], 
+                info["latitude"]]):
             extracted.append(info)
         else:
             logger.warning(f"跳过无效站点: {info}")
@@ -148,7 +192,10 @@ def load_stations():
         return None
 
 async def refresh_stations():
-    """刷新站点信息（从 API 获取并保存）
+    """刷新站点信息（从所有服务商获取并保存）
+    
+    使用 ProviderManager 从所有服务商获取站点状态数据，
+    从中提取站点基础信息并保存到 stations.json
     
     Returns:
         是否成功
@@ -158,14 +205,18 @@ async def refresh_stations():
         logger.error("OPENID 未设置，无法获取站点信息")
         return False
     
-    logger.info("开始从 API 获取站点信息...")
-    stations = await fetch_stations_from_api(openid)
+    logger.info("开始从所有服务商获取站点信息...")
+    stations = await fetch_stations_from_providers(openid)
     
     if stations is None:
         logger.error("获取站点信息失败")
         return False
     
-    # 提取关键信息
+    if not stations:
+        logger.error("没有获取到任何站点信息")
+        return False
+    
+    # 提取关键信息并转换为 stations.json 格式
     extracted = extract_station_info(stations)
     
     if not extracted:
@@ -174,7 +225,7 @@ async def refresh_stations():
     
     # 保存到文件
     if save_stations(extracted):
-        logger.info(f"站点信息刷新成功，共 {len(extracted)} 个站点")
+        logger.info(f"站点信息刷新成功，共 {len(extracted)} 个站点设备")
         return True
     else:
         logger.error("保存站点信息失败")

@@ -6,6 +6,7 @@ from fastapi.responses import JSONResponse, RedirectResponse, FileResponse
 from datetime import datetime, timezone, timedelta
 import sys
 import logging
+import asyncio
 from pathlib import Path
 
 # 配置日志（如果还没有配置）
@@ -17,7 +18,7 @@ logger = logging.getLogger(__name__)
 # 添加项目根目录到路径
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from fetcher.fetch import Fetcher
+from fetcher.provider_manager import ProviderManager
 from server.config import Config
 from server.storage import (
     load_latest, save_latest, 
@@ -34,6 +35,23 @@ logger.info("初始化 FastAPI 应用")
 @app.on_event("startup")
 async def startup_event():
     """服务器启动时执行的操作"""
+    logger.info("=" * 60)
+    logger.info("服务器启动中...")
+    logger.info("=" * 60)
+    
+    # 记录配置信息
+    logger.info(f"配置信息：")
+    logger.info(f"  - API 地址: {Config.API_HOST}:{Config.API_PORT}")
+    logger.info(f"  - 前端自动刷新间隔: {Config.FETCH_INTERVAL} 秒")
+    logger.info(f"  - 后端定时抓取间隔: {Config.BACKEND_FETCH_INTERVAL} 秒")
+    
+    # 启动后台定时抓取任务
+    if Config.get_openid():
+        asyncio.create_task(background_fetch_task())
+        logger.info(f"已启动后台定时抓取任务，间隔: {Config.BACKEND_FETCH_INTERVAL} 秒")
+    else:
+        logger.warning("OPENID 未设置，无法启动后台定时抓取任务")
+    
     logger.info("服务器启动事件：检查站点信息文件...")
     try:
         stations_data = load_stations()
@@ -47,6 +65,8 @@ async def startup_event():
     except Exception as e:
         logger.error(f"启动时检查站点信息失败: {str(e)}", exc_info=True)
         logger.warning("服务器将继续启动，但站点信息可能不可用")
+    
+    logger.info("=" * 60)
 
 # 添加 CORS 支持（必须在路由之前）
 app.add_middleware(
@@ -96,7 +116,9 @@ async def api_info():
         "message": "ZJU Charger API",
         "version": "1.0.0",
         "endpoints": {
-            "GET /api/status": "实时查询所有站点",
+            "GET /api/status": "实时查询所有站点（支持 ?provider=neptune 参数筛选）",
+            "GET /api/providers": "返回可用服务商列表",
+            "GET /api/config": "返回前端配置信息（包括抓取间隔等）",
             "POST /api/fetch-and-save": "抓取并保存数据（GitHub Action 使用）",
             "GET /api/cache": "返回缓存数据",
             "GET /api/watchlist": "返回关注列表站点状态",
@@ -106,10 +128,46 @@ async def api_info():
         }
     }
 
+@app.get("/api/config")
+async def get_config():
+    """返回前端配置信息"""
+    logger.info("收到 /api/config 请求")
+    return {
+        "fetch_interval": Config.FETCH_INTERVAL  # 前端自动刷新间隔（秒）
+    }
+
+@app.get("/api/providers")
+async def get_providers():
+    """返回可用服务商列表"""
+    logger.info("收到 /api/providers 请求")
+    openid = Config.get_openid()
+    if not openid:
+        logger.error("OPENID 环境变量未设置")
+        raise HTTPException(
+            status_code=500,
+            detail="OPENID 环境变量未设置"
+        )
+    
+    try:
+        manager = ProviderManager(openid)
+        providers = manager.list_providers()
+        logger.info(f"返回 {len(providers)} 个服务商")
+        return providers
+    except Exception as e:
+        logger.error(f"获取服务商列表失败: {str(e)}", exc_info=True)
+        raise HTTPException(
+            status_code=500,
+            detail=f"获取服务商列表失败: {str(e)}"
+        )
+
 @app.get("/api/status")
-async def get_status():
-    """实时查询所有站点状态"""
-    logger.info("收到 /api/status 请求")
+async def get_status(provider: str = None):
+    """实时查询所有站点状态
+    
+    Args:
+        provider: 可选，服务商标识（如 'neptune'），如果指定则只返回该服务商的数据
+    """
+    logger.info(f"收到 /api/status 请求，provider={provider}")
     openid = Config.get_openid()
     if not openid:
         logger.error("OPENID 环境变量未设置")
@@ -120,17 +178,17 @@ async def get_status():
     
     try:
         logger.info("开始抓取数据...")
-        async with Fetcher(openid) as fetcher:
-            result = await fetcher.fetch_and_format()
-            if result is None:
-                logger.error("数据抓取失败：返回 None")
-                raise HTTPException(
-                    status_code=500,
-                    detail="数据抓取失败"
-                )
-            station_count = len(result.get("stations", []))
-            logger.info(f"数据抓取成功，共 {station_count} 个站点")
-            return result
+        manager = ProviderManager(openid)
+        result = await manager.fetch_and_format(provider_id=provider)
+        if result is None:
+            logger.error("数据抓取失败：返回 None")
+            raise HTTPException(
+                status_code=500,
+                detail="数据抓取失败"
+            )
+        station_count = len(result.get("stations", []))
+        logger.info(f"数据抓取成功，共 {station_count} 个站点")
+        return result
     except HTTPException:
         raise
     except Exception as e:
@@ -154,30 +212,30 @@ async def fetch_and_save():
     
     try:
         logger.info("开始抓取并保存数据...")
-        async with Fetcher(openid) as fetcher:
-            result = await fetcher.fetch_and_format()
-            if result is None:
-                logger.error("数据抓取失败：返回 None")
-                raise HTTPException(
-                    status_code=500,
-                    detail="数据抓取失败"
-                )
-            
-            # 保存到 latest.json
-            if save_latest(result):
-                station_count = len(result.get("stations", []))
-                logger.info(f"数据已成功保存，共 {station_count} 个站点")
-                return {
-                    "success": True,
-                    "message": "数据已保存",
-                    "data": result
-                }
-            else:
-                logger.error("保存数据到 latest.json 失败")
-                raise HTTPException(
-                    status_code=500,
-                    detail="保存数据失败"
-                )
+        manager = ProviderManager(openid)
+        result = await manager.fetch_and_format()
+        if result is None:
+            logger.error("数据抓取失败：返回 None")
+            raise HTTPException(
+                status_code=500,
+                detail="数据抓取失败"
+            )
+        
+        # 保存到 latest.json
+        if save_latest(result):
+            station_count = len(result.get("stations", []))
+            logger.info(f"数据已成功保存，共 {station_count} 个站点")
+            return {
+                "success": True,
+                "message": "数据已保存",
+                "data": result
+            }
+        else:
+            logger.error("保存数据到 latest.json 失败")
+            raise HTTPException(
+                status_code=500,
+                detail="保存数据失败"
+            )
     except HTTPException:
         raise
     except Exception as e:
@@ -228,33 +286,29 @@ async def get_watchlist_status():
     
     try:
         logger.info("开始抓取关注列表数据...")
-        async with Fetcher(openid) as fetcher:
-            result = await fetcher.fetch_and_format()
-            if result is None:
-                logger.error("数据抓取失败：返回 None")
-                raise HTTPException(
-                    status_code=500,
-                    detail="数据抓取失败"
-                )
-            
-            # 将列表转换为集合以便快速查找
-            watchlist_devids_set = set(watchlist_devids)
-            watchlist_devdescripts_set = set(watchlist_devdescripts)
-            
-            # 过滤出关注列表中的站点（检查 devid 或 devdescript）
-            filtered_stations = [
-                station for station in result["stations"]
-                if is_in_watchlist(
-                    devids=station.get("devids"),
-                    devdescript=station.get("name")
-                )
-            ]
-            
-            logger.info(f"返回 {len(filtered_stations)} 个关注站点")
-            return {
-                "updated_at": result["updated_at"],
-                "stations": filtered_stations
-            }
+        manager = ProviderManager(openid)
+        result = await manager.fetch_and_format()
+        if result is None:
+            logger.error("数据抓取失败：返回 None")
+            raise HTTPException(
+                status_code=500,
+                detail="数据抓取失败"
+            )
+        
+        # 过滤出关注列表中的站点（检查 devid 或 devdescript）
+        filtered_stations = [
+            station for station in result["stations"]
+            if is_in_watchlist(
+                devids=station.get("devids"),
+                devdescript=station.get("name")
+            )
+        ]
+        
+        logger.info(f"返回 {len(filtered_stations)} 个关注站点")
+        return {
+            "updated_at": result["updated_at"],
+            "stations": filtered_stations
+        }
     except HTTPException:
         raise
     except Exception as e:
@@ -299,67 +353,99 @@ async def add_watchlist(request: Request):
         if not openid:
             raise HTTPException(status_code=500, detail="OPENID 环境变量未设置")
         
-        async with Fetcher(openid) as fetcher:
-            result = await fetcher.fetch_and_format()
-            if result is None:
-                raise HTTPException(status_code=500, detail="无法验证数据，数据抓取失败")
+        manager = ProviderManager(openid)
+        result = await manager.fetch_and_format()
+        if result is None:
+            raise HTTPException(status_code=500, detail="无法验证数据，数据抓取失败")
+        
+        stations = result.get("stations", [])
+        
+        # 验证 devids
+        if devids:
+            if not isinstance(devids, list):
+                devids = [devids]
             
-            stations = result.get("stations", [])
+            # 收集所有有效的 devid
+            all_devids = set()
+            for station in stations:
+                station_devids = station.get("devids", [])
+                all_devids.update(station_devids)
             
-            # 验证 devids
-            if devids:
-                if not isinstance(devids, list):
-                    devids = [devids]
-                
-                # 收集所有有效的 devid
-                all_devids = set()
-                for station in stations:
-                    station_devids = station.get("devids", [])
-                    all_devids.update(station_devids)
-                
-                # 检查请求的 devid 是否都存在
-                invalid_devids = [d for d in devids if int(d) not in all_devids]
-                if invalid_devids:
-                    raise HTTPException(
-                        status_code=404,
-                        detail=f"以下 devid 不存在: {invalid_devids}"
-                    )
+            # 检查请求的 devid 是否都存在
+            invalid_devids = [d for d in devids if int(d) not in all_devids]
+            if invalid_devids:
+                raise HTTPException(
+                    status_code=404,
+                    detail=f"以下 devid 不存在: {invalid_devids}"
+                )
+        
+        # 验证 devdescripts
+        if devdescripts:
+            if not isinstance(devdescripts, list):
+                devdescripts = [devdescripts]
             
-            # 验证 devdescripts
-            if devdescripts:
-                if not isinstance(devdescripts, list):
-                    devdescripts = [devdescripts]
-                
-                # 收集所有有效的站点名称
-                all_names = {s["name"] for s in stations}
-                
-                # 检查请求的站点名称是否都存在
-                invalid_names = [n for n in devdescripts if n not in all_names]
-                if invalid_names:
-                    raise HTTPException(
-                        status_code=404,
-                        detail=f"以下站点名称不存在: {invalid_names}"
-                    )
+            # 收集所有有效的站点名称
+            all_names = {s["name"] for s in stations}
             
-            # 添加到关注列表
-            success = add_to_watchlist(devids=devids, devdescripts=devdescripts)
-            if success:
-                logger.info(f"成功添加关注: devids={devids}, devdescripts={devdescripts}")
-                return {
-                    "success": True,
-                    "message": f"已添加到关注列表: devids={devids}, devdescripts={devdescripts}"
-                }
-            else:
-                logger.info(f"已在关注列表中: devids={devids}, devdescripts={devdescripts}")
-                return {
-                    "success": False,
-                    "message": f"已在关注列表中: devids={devids}, devdescripts={devdescripts}"
-                }
+            # 检查请求的站点名称是否都存在
+            invalid_names = [n for n in devdescripts if n not in all_names]
+            if invalid_names:
+                raise HTTPException(
+                    status_code=404,
+                    detail=f"以下站点名称不存在: {invalid_names}"
+                )
+        
+        # 添加到关注列表
+        success = add_to_watchlist(devids=devids, devdescripts=devdescripts)
+        if success:
+            logger.info(f"成功添加关注: devids={devids}, devdescripts={devdescripts}")
+            return {
+                "success": True,
+                "message": f"已添加到关注列表: devids={devids}, devdescripts={devdescripts}"
+            }
+        else:
+            logger.info(f"已在关注列表中: devids={devids}, devdescripts={devdescripts}")
+            return {
+                "success": False,
+                "message": f"已在关注列表中: devids={devids}, devdescripts={devdescripts}"
+            }
     except HTTPException:
         raise
     except Exception as e:
         logger.error(f"添加关注失败: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"操作失败: {str(e)}")
+
+async def background_fetch_task():
+    """后台定时抓取任务，定期从供应商API抓取数据并保存到缓存"""
+    openid = Config.get_openid()
+    if not openid:
+        logger.warning("OPENID 未设置，后台抓取任务无法运行")
+        return
+    
+    fetch_interval = Config.BACKEND_FETCH_INTERVAL
+    
+    while True:
+        try:
+            await asyncio.sleep(fetch_interval)
+            logger.info(f"开始后台定时抓取数据（间隔: {fetch_interval}秒）...")
+            
+            manager = ProviderManager(openid)
+            result = await manager.fetch_and_format()
+            
+            if result is None:
+                logger.error("后台抓取数据失败：返回 None")
+                continue
+            
+            # 保存到 latest.json
+            if save_latest(result):
+                station_count = len(result.get("stations", []))
+                logger.info(f"后台抓取数据成功并已保存，共 {station_count} 个站点")
+            else:
+                logger.error("后台抓取数据保存失败")
+        except Exception as e:
+            logger.error(f"后台抓取任务发生异常: {str(e)}", exc_info=True)
+            # 发生异常时等待一段时间再继续，避免频繁重试
+            await asyncio.sleep(60)
 
 @app.delete("/api/watchlist")
 async def remove_watchlist(request: Request):
