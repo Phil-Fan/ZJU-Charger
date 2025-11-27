@@ -173,8 +173,8 @@ function switchMap(mapProvider) {
     currentTileLayer = L.tileLayer(provider.tileLayer, provider.options);
     currentTileLayer.addTo(map);
     
-    // 更新按钮状态
-    updateMapSwitchButtons();
+    // 更新选择器状态
+    updateMapSelector();
     
     // 重新转换并设置中心点
     const center = convertCoord(DEFAULT_CENTER[0], DEFAULT_CENTER[1]);
@@ -188,18 +188,12 @@ function switchMap(mapProvider) {
     console.log(`已切换到: ${provider.name} (${provider.coordSystem})`);
 }
 
-// 更新地图切换按钮状态
-function updateMapSwitchButtons() {
-    const buttons = document.querySelectorAll('[data-map]');
-    buttons.forEach(btn => {
-        if (btn.dataset.map === MAP_CONFIG.useMap) {
-            // 激活状态：蓝色背景
-            btn.className = 'px-3 py-2 rounded-md text-xs lg:text-sm font-medium transition-all duration-200 bg-blue-600 text-white border border-blue-600 hover:bg-blue-700';
-        } else {
-            // 非激活状态：灰色背景
-            btn.className = 'px-3 py-2 rounded-md text-xs lg:text-sm font-medium transition-all duration-200 bg-gray-100 text-gray-700 border border-gray-300 hover:bg-blue-50 hover:border-blue-600 hover:text-blue-600';
-        }
-    });
+// 更新地图选择器状态
+function updateMapSelector() {
+    const selector = document.getElementById('map-selector');
+    if (selector) {
+        selector.value = MAP_CONFIG.useMap;
+    }
 }
 
 // 获取关注列表
@@ -637,14 +631,15 @@ function setupCampusSelector() {
 }
 
 // 地图切换事件
-document.querySelectorAll('[data-map]').forEach(btn => {
-    btn.addEventListener('click', () => {
-        const mapProvider = btn.dataset.map;
+const mapSelector = document.getElementById('map-selector');
+if (mapSelector) {
+    mapSelector.addEventListener('change', (e) => {
+        const mapProvider = e.target.value;
         if (mapProvider && MAP_PROVIDERS[mapProvider]) {
             switchMap(mapProvider);
         }
     });
-});
+}
 
 // 刷新按钮事件
 document.getElementById('refresh-btn').addEventListener('click', () => {
@@ -655,8 +650,8 @@ document.getElementById('refresh-btn').addEventListener('click', () => {
 document.addEventListener('DOMContentLoaded', async () => {
     initMap();
     setupCampusSelector();
-    // 初始化地图切换按钮状态
-    updateMapSwitchButtons();
+    // 初始化地图选择器状态
+    updateMapSelector();
     // 先加载关注列表，再获取站点状态
     await fetchWatchlist();
     fetchStatus();
