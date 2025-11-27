@@ -190,12 +190,14 @@ function switchMap(mapProvider) {
 
 // 更新地图切换按钮状态
 function updateMapSwitchButtons() {
-    const buttons = document.querySelectorAll('.map-switch-btn');
+    const buttons = document.querySelectorAll('[data-map]');
     buttons.forEach(btn => {
         if (btn.dataset.map === MAP_CONFIG.useMap) {
-            btn.classList.add('active');
+            // 激活状态：蓝色背景
+            btn.className = 'px-3 py-2 rounded-md text-xs lg:text-sm font-medium transition-all duration-200 bg-blue-600 text-white border border-blue-600 hover:bg-blue-700';
         } else {
-            btn.classList.remove('active');
+            // 非激活状态：灰色背景
+            btn.className = 'px-3 py-2 rounded-md text-xs lg:text-sm font-medium transition-all duration-200 bg-gray-100 text-gray-700 border border-gray-300 hover:bg-blue-50 hover:border-blue-600 hover:text-blue-600';
         }
     });
 }
@@ -343,10 +345,10 @@ async function fetchStatus() {
                 // 数据为空，显示提示
                 const listEl = document.getElementById('station-list');
                 listEl.innerHTML = `
-                    <div class="error-message">
-                        <p>暂无站点数据</p>
-                        <p style="font-size: 12px; margin-top: 8px;">请确保已配置 OPENID 并成功抓取数据</p>
-                        <p style="font-size: 12px; margin-top: 4px;">如果服务器正在运行，请检查控制台错误信息</p>
+                    <div class="bg-red-50 border border-red-200 text-red-800 p-4 rounded-lg text-center">
+                        <p class="font-medium">暂无站点数据</p>
+                        <p class="text-sm mt-2">请确保已配置 OPENID 并成功抓取数据</p>
+                        <p class="text-sm mt-1 text-red-600">如果服务器正在运行，请检查控制台错误信息</p>
                     </div>
                 `;
                 updateTime(data.updated_at || '未知');
@@ -363,10 +365,10 @@ async function fetchStatus() {
     } catch (error) {
         console.error('获取数据失败:', error);
         listEl.innerHTML = `
-            <div class="error-message">
-                <p>加载数据失败</p>
-                <p style="font-size: 12px; margin-top: 8px;">${error.message}</p>
-                <p style="font-size: 12px; margin-top: 8px; color: #666;">
+            <div class="bg-red-50 border border-red-200 text-red-800 p-4 rounded-lg text-center">
+                <p class="font-medium">加载数据失败</p>
+                <p class="text-sm mt-2">${error.message}</p>
+                <p class="text-sm mt-2 text-red-600">
                     请检查：<br>
                     1. 服务器是否正在运行<br>
                     2. OPENID 环境变量是否已配置<br>
@@ -397,10 +399,8 @@ function renderMap(stations) {
     // 按校区过滤
     const filteredStations = filterStationsByCampus(stations);
     
-    // 只显示有空闲的站点
-    const availableStations = filteredStations.filter(s => s.free > 0);
-    
-    availableStations.forEach(station => {
+    // 显示所有站点（包括非空闲的）
+    filteredStations.forEach(station => {
         const { name, lat, lon, free, total } = station;
         
         // 坐标转换
@@ -408,25 +408,48 @@ function renderMap(stations) {
         
         // 根据空闲数量选择颜色
         let color = '#52c41a'; // 绿色：有空闲
-        if (free <= 2) {
+        if (free === 0) {
+            color = '#dc2626'; // 深红色：无空闲
+        } else if (free <= 2) {
             color = '#faad14'; // 橙色：少量空闲
         }
         
+        // 创建带数字的自定义图标
+        const iconHtml = `
+            <div style="
+                width: 24px;
+                height: 24px;
+                border-radius: 50%;
+                background-color: ${color};
+                border: 2px solid white;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                color: white;
+                font-weight: bold;
+                font-size: 11px;
+                box-shadow: 0 2px 4px rgba(0,0,0,0.3);
+            ">${free}</div>
+        `;
+        
+        const customIcon = L.divIcon({
+            html: iconHtml,
+            className: '',
+            iconSize: [24, 24],
+            iconAnchor: [12, 12]
+        });
+        
         // 创建标记
-        const marker = L.circleMarker([markerLat, markerLon], {
-            radius: 8,
-            fillColor: color,
-            color: '#fff',
-            weight: 2,
-            opacity: 1,
-            fillOpacity: 0.8
+        const marker = L.marker([markerLat, markerLon], {
+            icon: customIcon
         }).addTo(map);
         
         // 添加弹出窗口
+        const freeColor = free === 0 ? '#ef4444' : '#52c41a';
         marker.bindPopup(`
             <div style="text-align: center;">
                 <strong>${name}</strong><br>
-                可用: <span style="color: #52c41a; font-weight: bold;">${free}</span> / ${total}
+                可用: <span style="color: ${freeColor}; font-weight: bold;">${free}</span> / ${total}
             </div>
         `);
         
@@ -456,7 +479,7 @@ function renderList(stations) {
     const sortedStations = [...filteredStations].sort((a, b) => b.free - a.free);
     
     if (sortedStations.length === 0) {
-        listEl.innerHTML = '<div class="error-message">暂无站点数据</div>';
+        listEl.innerHTML = '<div class="bg-red-50 border border-red-200 text-red-800 p-4 rounded-lg text-center">暂无站点数据</div>';
         return;
     }
     
@@ -476,40 +499,53 @@ function renderList(stations) {
             }
         }
         
-        const itemClass = free === 0 ? 'station-item no-free' : 'station-item';
+        // 确定状态样式类名（使用Tailwind颜色）
+        let statusBgClass = 'bg-red-500'; // none - 无空闲
+        if (statusClass === 'free') {
+            statusBgClass = 'bg-green-600'; // 有空闲
+        } else if (statusClass === 'low') {
+            statusBgClass = 'bg-orange-500'; // 少量空闲
+        }
+        
+        // 非空闲点位使用深红色背景
+        const itemBgClass = free === 0 ? 'bg-red-200' : 'bg-gray-50';
+        const itemBorderClass = free === 0 ? 'border-red-500' : 'border-gray-200';
+        const itemHoverBorderClass = free === 0 ? 'hover:border-red-600' : 'hover:border-blue-600';
+        const itemHoverBgClass = free === 0 ? 'hover:bg-red-300' : 'hover:bg-blue-50';
         
         // 检查是否已关注（检查 devid 或 devdescript）
         const stationDevids = devids || [];
         const watched = isWatched(stationDevids, name);
-        const heartClass = watched ? 'heart-icon watched' : 'heart-icon';
+        // 使用Tailwind内置的animate-pulse动画实现心跳效果
+        const heartAnimationClass = watched ? 'animate-pulse' : '';
         const heartSymbol = watched ? '❤️' : '🤍';
         
         // 将 devids 转换为 JSON 字符串以便在 data 属性中使用
         const devidsJson = JSON.stringify(stationDevids);
         
         return `
-            <div class="${itemClass}" data-name="${name}">
-                <div class="station-header">
-                    <span class="station-name">${name}</span>
-                    <span class="station-status ${statusClass}">${statusText}</span>
-                    <span class="${heartClass}" data-devids='${devidsJson}' data-devdescript="${name}" title="${watched ? '取消关注' : '添加关注'}">${heartSymbol}</span>
+            <div class="p-4 border ${itemBorderClass} rounded-lg ${itemBgClass} transition-all duration-200 cursor-pointer ${itemHoverBorderClass} ${itemHoverBgClass} hover:translate-x-1 hover:shadow-md" data-name="${name}">
+                <div class="flex justify-between items-center mb-2 gap-2">
+                    <span class="font-semibold text-base text-gray-900 flex-1">${name}</span>
+                    <span class="px-2 py-1 rounded text-xs font-semibold text-white whitespace-nowrap ${statusBgClass}">${statusText}</span>
+                    <span class="text-lg cursor-pointer select-none transition-transform duration-200 hover:scale-125 flex-shrink-0 p-0.5 leading-none ${heartAnimationClass}" data-devids='${devidsJson}' data-devdescript="${name}" title="${watched ? '取消关注' : '添加关注'}">${heartSymbol}</span>
                 </div>
-                <div class="station-info">
-                    <span>可用: <strong>${free}</strong></span>
-                    <span>已用: <strong>${used}</strong></span>
-                    <span>总数: <strong>${total}</strong></span>
-                    ${error > 0 ? `<span style="color: #ff4d4f;">故障: <strong>${error}</strong></span>` : ''}
+                <div class="flex gap-4 text-sm text-gray-600 flex-wrap">
+                    <span>可用: <strong class="text-gray-900">${free}</strong></span>
+                    <span>已用: <strong class="text-gray-900">${used}</strong></span>
+                    <span>总数: <strong class="text-gray-900">${total}</strong></span>
+                    ${error > 0 ? `<span class="text-red-600">故障: <strong>${error}</strong></span>` : ''}
                 </div>
             </div>
         `;
     }).join('');
     
     // 添加点击事件
-    listEl.querySelectorAll('.station-item').forEach(item => {
+    listEl.querySelectorAll('[data-name]').forEach(item => {
         const stationName = item.dataset.name;
         
         // 小红心点击事件（阻止冒泡，避免触发地图定位）
-        const heartIcon = item.querySelector('.heart-icon');
+        const heartIcon = item.querySelector('[data-devids]');
         if (heartIcon) {
             heartIcon.addEventListener('click', async (e) => {
                 e.stopPropagation(); // 阻止事件冒泡
@@ -533,7 +569,7 @@ function renderList(stations) {
         // 列表项点击事件，定位到地图
         item.addEventListener('click', (e) => {
             // 如果点击的是小红心，不触发地图定位
-            if (e.target.classList.contains('heart-icon')) {
+            if (e.target.hasAttribute('data-devids')) {
                 return;
             }
             
@@ -576,13 +612,19 @@ function updateTime(timestamp) {
 
 // 校区切换事件
 function setupCampusSelector() {
-    const campusButtons = document.querySelectorAll('.campus-btn');
+    const campusButtons = document.querySelectorAll('[data-areaid]');
     campusButtons.forEach(btn => {
         btn.addEventListener('click', () => {
-            // 移除所有 active 类
-            campusButtons.forEach(b => b.classList.remove('active'));
-            // 添加 active 类到当前按钮
-            btn.classList.add('active');
+            // 更新所有按钮样式
+            campusButtons.forEach(b => {
+                if (b === btn) {
+                    // 激活状态：蓝色背景
+                    b.className = 'px-3 lg:px-4 py-2 rounded-md text-xs lg:text-sm font-medium transition-all duration-200 bg-blue-600 text-white border border-blue-600 hover:bg-blue-700';
+                } else {
+                    // 非激活状态：灰色背景
+                    b.className = 'px-3 lg:px-4 py-2 rounded-md text-xs lg:text-sm font-medium transition-all duration-200 bg-gray-100 text-gray-700 border border-gray-300 hover:bg-blue-50 hover:border-blue-600 hover:text-blue-600';
+                }
+            });
             // 更新当前校区
             currentAreaId = btn.dataset.areaid || "";
             // 重新渲染（使用已加载的数据）
@@ -595,7 +637,7 @@ function setupCampusSelector() {
 }
 
 // 地图切换事件
-document.querySelectorAll('.map-switch-btn').forEach(btn => {
+document.querySelectorAll('[data-map]').forEach(btn => {
     btn.addEventListener('click', () => {
         const mapProvider = btn.dataset.map;
         if (mapProvider && MAP_PROVIDERS[mapProvider]) {
