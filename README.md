@@ -135,6 +135,7 @@ project/
 - 感谢 [cyc-987/Charge-in-ZJU: 浙大充电桩查询](https://github.com/cyc-987/Charge-in-ZJU) 的原作者 [@cyc-987](https://github.com/cyc-987)，为该项目提供了基础功能和灵感。
 - 使用 [leaflet-echarts](https://github.com/wandergis/leaflet-echarts) 实现地图可视化功能。
 - 使用 [Leaflet.EasyPrint](https://github.com/rowanwins/leaflet-easyPrint) 插件实现地图下载功能。
+- 使用 [经纬度查询定位 ｜ 坐标拾取](https://www.mapchaxun.cn/Regeo) 调整抓取到的错误站点坐标。
 - 使用 [wandergis/coordtransform](https://github.com/wandergis/coordtransform) 实现百度坐标（BD09）、国测局坐标（火星坐标，GCJ02）、和 WGS84 坐标系之间的转换函数，解决坐标偏移的问题。
 - 使用 [htoooth/Leaflet.ChineseTmsProviders](https://github.com/htoooth/Leaflet.ChineseTmsProviders/tree/master) 实现多种地图支持。
 - 使用 [Tailwind CSS](https://tailwindcss.com/) 样式库。

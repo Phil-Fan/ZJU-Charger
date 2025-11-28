@@ -23,7 +23,7 @@ const WATCHLIST_STORAGE_KEY = 'zju_charger_watchlist';
 // 注意：坐标格式为 [经度, 纬度] (lng, lat)
 const CAMPUS_CONFIG = {
     2143: { name: "玉泉校区", center: [120.129265, 30.269646] }, // 教三位置
-    1774: { name: "紫金港校区", center: [120.089946, 30.299196] } // 修正坐标顺序为 [lng, lat]
+    1774: { name: "紫金港校区", center: [120.07707846383452,30.30430871105789] }
 };
 
 // 默认中心点：玉泉校区教三（BD-09 坐标，会自动转换为 GCJ-02）
