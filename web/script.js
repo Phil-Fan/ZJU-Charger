@@ -1105,6 +1105,32 @@ function renderList(stations, allStationsDef = []) {
     });
 }
 
+// 检查是否在夜间时段（0:10-5:50）
+function isNightTime() {
+    const now = new Date();
+    const hours = now.getHours();
+    const minutes = now.getMinutes();
+    const currentTimeMinutes = hours * 60 + minutes;
+    
+    // 夜间时段：0:10 (10分钟) 到 5:50 (350分钟)
+    const nightStartMinutes = 0 * 60 + 10; // 0:10
+    const nightEndMinutes = 5 * 60 + 50;   // 5:50
+    
+    return currentTimeMinutes >= nightStartMinutes && currentTimeMinutes <= nightEndMinutes;
+}
+
+// 更新夜间消息显示状态
+function updateNightMessage() {
+    const nightMessageEl = document.getElementById('night-message');
+    if (nightMessageEl) {
+        if (isNightTime()) {
+            nightMessageEl.classList.remove('hidden');
+        } else {
+            nightMessageEl.classList.add('hidden');
+        }
+    }
+}
+
 // 更新时间显示
 function updateTime(timestamp) {
     const timeEl = document.getElementById('update-time');
@@ -1122,6 +1148,8 @@ function updateTime(timestamp) {
     } else {
         timeEl.textContent = '更新时间: 未知';
     }
+    // 同时更新夜间消息显示状态
+    updateNightMessage();
 }
 
 // 暗色模式相关函数
@@ -1583,6 +1611,14 @@ document.addEventListener('DOMContentLoaded', async () => {
     fetchWatchlist();
     // 确保在 fetchStatus 执行时 currentCampus 仍然是正确的值
     await fetchStatus();
+    
+    // 初始化夜间消息显示状态
+    updateNightMessage();
+    
+    // 设置定时检查夜间消息（每分钟检查一次）
+    setInterval(() => {
+        updateNightMessage();
+    }, 60 * 1000); // 60秒 = 1分钟
     
     // 设置下载按钮事件
     const downloadBtn = document.getElementById('download-map-btn');

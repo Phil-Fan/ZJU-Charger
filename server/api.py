@@ -316,32 +316,61 @@ async def get_status(provider: Optional[str] = None, id: Optional[str] = None):
         raise HTTPException(status_code=500, detail=f"查询失败: {str(e)}")
 
 
+def is_night_time():
+    """检查当前时间是否在夜间暂停时段（0:10-5:50）"""
+    tz_utc_8 = timezone(timedelta(hours=8))
+    now = datetime.now(tz_utc_8)
+    current_time = now.time()
+    
+    # 定义夜间暂停时段：0:10 到 5:50
+    night_start = datetime.strptime("00:10", "%H:%M").time()
+    night_end = datetime.strptime("05:50", "%H:%M").time()
+    
+    # 检查是否在夜间时段（0:10 到 5:50 之间）
+    # 由于这个时间段在同一天内，可以直接比较
+    if night_start <= current_time <= night_end:
+        return True
+    
+    return False
+
+
 async def background_fetch_task():
     """后台定时抓取任务，定期从供应商API抓取数据并保存到缓存"""
     fetch_interval = Config.BACKEND_FETCH_INTERVAL
 
-    # 启动时先执行一次，确保有初始缓存
+    # 启动时先执行一次，确保有初始缓存（但需要检查时间）
     logger.info("执行首次后台抓取任务，初始化缓存...")
-    try:
-        manager = ProviderManager()
-        result = await manager.fetch_and_format()
+    if not is_night_time():
+        try:
+            manager = ProviderManager()
+            result = await manager.fetch_and_format()
 
-        if result is None:
-            logger.error("首次后台抓取数据失败：返回 None")
-        else:
-            # 保存到 latest.json
-            if save_latest(result):
-                station_count = len(result.get("stations", []))
-                logger.info(f"首次后台抓取数据成功并已保存，共 {station_count} 个站点")
+            if result is None:
+                logger.error("首次后台抓取数据失败：返回 None")
             else:
-                logger.error("首次后台抓取数据保存失败")
-    except Exception as e:
-        logger.error(f"首次后台抓取任务发生异常: {str(e)}", exc_info=True)
+                # 保存到 latest.json
+                if save_latest(result):
+                    station_count = len(result.get("stations", []))
+                    logger.info(f"首次后台抓取数据成功并已保存，共 {station_count} 个站点")
+                else:
+                    logger.error("首次后台抓取数据保存失败")
+        except Exception as e:
+            logger.error(f"首次后台抓取任务发生异常: {str(e)}", exc_info=True)
+    else:
+        logger.info("当前处于夜间暂停时段（0:10-5:50），跳过首次抓取")
 
     # 然后按间隔定时执行
     while True:
         try:
             await asyncio.sleep(fetch_interval)
+            
+            # 检查是否在夜间暂停时段
+            if is_night_time():
+                tz_utc_8 = timezone(timedelta(hours=8))
+                current_time_str = datetime.now(tz_utc_8).strftime("%H:%M")
+                logger.info(f"当前时间 {current_time_str} 处于夜间暂停时段（0:10-5:50），跳过本次抓取")
+                continue
+            
             logger.info(f"开始后台定时抓取数据（间隔: {fetch_interval}秒）...")
 
             manager = ProviderManager()
