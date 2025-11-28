@@ -343,17 +343,6 @@
       "provider_name": "尼普顿"
     },
     {
-      "devid": 8636,
-      "devaddress": 50559151,
-      "areaid": 2143,
-      "devdescript": "浙大玉泉生仪",
-      "longitude": 120.1280734297563,
-      "latitude": 30.26651727633735,
-      "simDevaddress": "浙江省 杭州市 西湖区 西山游步道 靠近奶娘坟游步道上坡处23号蓄水池",
-      "provider_id": "neptune",
-      "provider_name": "尼普顿"
-    },
-    {
       "devid": 10227,
       "devaddress": 60359127,
       "areaid": 2143,
