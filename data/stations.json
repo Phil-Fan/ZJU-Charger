@@ -123,17 +123,6 @@
       "provider_name": "尼普顿"
     },
     {
-      "devid": 8634,
-      "devaddress": 50559149,
-      "areaid": 2143,
-      "devdescript": "浙大玉泉生仪",
-      "longitude": 120.1280734297563,
-      "latitude": 30.26651727633735,
-      "simDevaddress": "浙江省 杭州市 西湖区 体菀路 靠近浙江大学(玉泉校区)",
-      "provider_id": "neptune",
-      "provider_name": "尼普顿"
-    },
-    {
       "devid": 8635,
       "devaddress": 50559150,
       "areaid": 2143,
