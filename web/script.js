@@ -2,8 +2,8 @@
 let map = null;
 let markers = [];
 
-// 当前选中的校区 campus（空字符串表示全部）
-let currentCampus = "";
+// 当前选中的校区 campus（空字符串表示全部），默认选择玉泉校区
+let currentCampus = "2143";
 
 // 当前选中的服务商（空字符串表示全部）
 let currentProvider = "";
@@ -20,14 +20,15 @@ let watchlistDevdescripts = new Set();
 const WATCHLIST_STORAGE_KEY = 'zju_charger_watchlist';
 
 // 校区配置
+// 注意：坐标格式为 [经度, 纬度] (lng, lat)
 const CAMPUS_CONFIG = {
-    2143: { name: "玉泉校区", center: [120.12975093580188,30.27008755710778] },
-    1774: { name: "紫金港校区", center: [30.299196, 120.089946] }
+    2143: { name: "玉泉校区", center: [120.129265, 30.269646] }, // 教三位置
+    1774: { name: "紫金港校区", center: [120.089946, 30.299196] } // 修正坐标顺序为 [lng, lat]
 };
 
-// 默认中心点：玉泉校区（BD-09 坐标，会自动转换为 GCJ-02）
-const DEFAULT_CENTER = [120.12975093580188,30.27008755710778];
-const DEFAULT_ZOOM = 15;
+// 默认中心点：玉泉校区教三（BD-09 坐标，会自动转换为 GCJ-02）
+const DEFAULT_CENTER = [120.129265, 30.269646];
+const DEFAULT_ZOOM = 17; // 放大级别，便于查看充电桩位置
 
 // 地图配置
 const MAP_CONFIG = {
@@ -146,8 +147,14 @@ function initMap() {
         map.remove();
     }
     
+    // 根据当前选择的校区确定地图中心点
+    let centerCoord = DEFAULT_CENTER;
+    if (currentCampus && CAMPUS_CONFIG[currentCampus]) {
+        centerCoord = CAMPUS_CONFIG[currentCampus].center;
+    }
+    
     // 转换中心点坐标
-    const center = convertCoord(DEFAULT_CENTER[0], DEFAULT_CENTER[1]);
+    const center = convertCoord(centerCoord[0], centerCoord[1]);
     
     // 创建地图实例
     map = L.map('map').setView(center, DEFAULT_ZOOM);
@@ -636,7 +643,9 @@ function filterStationsByCampus(stations) {
     if (!currentCampus) {
         return stations;  // 显示全部
     }
-    return stations.filter(s => s.campus && s.campus.toString() === currentCampus);
+    const filtered = stations.filter(s => s.campus && s.campus.toString() === currentCampus);
+    console.log(`[filterStationsByCampus] currentCampus=${currentCampus}, total=${stations.length}, filtered=${filtered.length}`);
+    return filtered;
 }
 
 // 过滤站点（按服务商）
@@ -1188,6 +1197,225 @@ document.getElementById('refresh-btn').addEventListener('click', () => {
 // 获取前端配置
 let fetchInterval = 60; // 默认60秒
 
+// 计算两点之间的距离（使用 Haversine 公式，单位：公里）
+function calculateDistance(lat1, lon1, lat2, lon2) {
+    const R = 6371; // 地球半径（公里）
+    const dLat = (lat2 - lat1) * Math.PI / 180;
+    const dLon = (lon2 - lon1) * Math.PI / 180;
+    const a = 
+        Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+        Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+        Math.sin(dLon / 2) * Math.sin(dLon / 2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    return R * c;
+}
+
+// 获取用户位置并找到最近的校区
+function detectNearestCampus() {
+    return new Promise((resolve, reject) => {
+        // 检查浏览器是否支持地理位置 API
+        if (!navigator.geolocation) {
+            reject(new Error('浏览器不支持地理位置服务'));
+            return;
+        }
+
+        // 检查是否在 HTTPS 环境下（localhost 除外）
+        const isSecureContext = window.isSecureContext || location.protocol === 'https:' || location.hostname === 'localhost' || location.hostname === '127.0.0.1';
+        if (!isSecureContext) {
+            console.warn('地理位置 API 需要 HTTPS 环境才能使用');
+            reject(new Error('地理位置功能需要 HTTPS 环境，当前为 HTTP'));
+            return;
+        }
+
+        navigator.geolocation.getCurrentPosition(
+            (position) => {
+                const userLat = position.coords.latitude;
+                const userLon = position.coords.longitude;
+                
+                console.log(`用户位置: ${userLat}, ${userLon}`);
+                
+                // 计算到各个校区的距离
+                let nearestCampus = null;
+                let minDistance = Infinity;
+                
+                for (const [campusId, campusInfo] of Object.entries(CAMPUS_CONFIG)) {
+                    const [campusLon, campusLat] = campusInfo.center;
+                    const distance = calculateDistance(userLat, userLon, campusLat, campusLon);
+                    
+                    console.log(`${campusInfo.name} 距离: ${distance.toFixed(2)} 公里`);
+                    
+                    if (distance < minDistance) {
+                        minDistance = distance;
+                        nearestCampus = {
+                            id: campusId,
+                            name: campusInfo.name,
+                            distance: distance
+                        };
+                    }
+                }
+                
+                if (nearestCampus) {
+                    console.log(`最近的校区: ${nearestCampus.name} (${nearestCampus.distance.toFixed(2)} 公里)`);
+                    resolve(nearestCampus);
+                } else {
+                    reject(new Error('无法找到最近的校区'));
+                }
+            },
+            (error) => {
+                let errorMessage = '获取位置失败';
+                switch(error.code) {
+                    case error.PERMISSION_DENIED:
+                        errorMessage = '用户拒绝了位置权限请求';
+                        break;
+                    case error.POSITION_UNAVAILABLE:
+                        errorMessage = '位置信息不可用';
+                        break;
+                    case error.TIMEOUT:
+                        errorMessage = '获取位置超时';
+                        break;
+                    default:
+                        errorMessage = error.message || '未知错误';
+                        break;
+                }
+                console.warn('获取位置失败:', errorMessage, error);
+                reject(new Error(errorMessage));
+            },
+            {
+                enableHighAccuracy: false,
+                timeout: 10000, // 增加到10秒
+                maximumAge: 60000 // 缓存1分钟
+            }
+        );
+    });
+}
+
+// 显示位置提醒通知
+function showLocationNotification(campusName, distance, isSwitched = false) {
+    // 移除已存在的通知
+    const existingNotification = document.getElementById('location-notification');
+    if (existingNotification) {
+        existingNotification.remove();
+    }
+    
+    // 创建通知元素
+    const notification = document.createElement('div');
+    notification.id = 'location-notification';
+    notification.className = 'fixed top-4 right-4 bg-blue-50 border border-blue-200 rounded-lg shadow-lg p-4 max-w-sm z-[9999] animate-slide-in';
+    notification.style.zIndex = '9999'; // 确保在最上层
+    const distanceText = distance !== undefined ? ` (距离您约 ${distance.toFixed(1)} 公里)` : '';
+    const titleText = isSwitched ? '已自动切换到最近校区' : '检测到您的位置';
+    notification.innerHTML = `
+        <div class="flex items-start gap-3">
+            <div class="flex-shrink-0">
+                <svg class="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"></path>
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"></path>
+                </svg>
+            </div>
+            <div class="flex-1">
+                <p class="text-sm font-medium text-blue-900">${titleText}</p>
+                <p class="text-xs text-blue-700 mt-1">${campusName}${distanceText}</p>
+            </div>
+            <button onclick="this.parentElement.parentElement.remove()" class="flex-shrink-0 text-blue-400 hover:text-blue-600">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                </svg>
+            </button>
+        </div>
+    `;
+    
+    // 添加样式（如果还没有）
+    if (!document.getElementById('location-notification-style')) {
+        const style = document.createElement('style');
+        style.id = 'location-notification-style';
+        style.textContent = `
+            @keyframes slide-in {
+                from {
+                    transform: translateX(100%);
+                    opacity: 0;
+                }
+                to {
+                    transform: translateX(0);
+                    opacity: 1;
+                }
+            }
+            .animate-slide-in {
+                animation: slide-in 0.3s ease-out;
+            }
+        `;
+        document.head.appendChild(style);
+    }
+    
+    document.body.appendChild(notification);
+    
+    // 5秒后自动消失
+    setTimeout(() => {
+        if (notification.parentElement) {
+            notification.style.transition = 'opacity 0.3s ease-out';
+            notification.style.opacity = '0';
+            setTimeout(() => {
+                if (notification.parentElement) {
+                    notification.remove();
+                }
+            }, 300);
+        }
+    }, 5000);
+}
+
+// 切换到指定校区
+function switchToCampus(campusId) {
+    const campusInfo = CAMPUS_CONFIG[campusId];
+    if (!campusInfo) {
+        console.error(`未知的校区 ID: ${campusId}`);
+        return;
+    }
+    
+    // 更新当前校区
+    currentCampus = campusId;
+    
+    // 更新按钮样式
+    const campusButtons = document.querySelectorAll('[data-campus]');
+    campusButtons.forEach(btn => {
+        if (btn.dataset.campus === campusId) {
+            btn.className = 'px-3 lg:px-4 py-2 rounded-md text-xs lg:text-sm font-medium transition-all duration-200 bg-blue-600 text-white border border-blue-600 hover:bg-blue-700';
+        } else {
+            btn.className = 'px-3 lg:px-4 py-2 rounded-md text-xs lg:text-sm font-medium transition-all duration-200 bg-gray-100 text-gray-700 border border-gray-300 hover:bg-blue-50 hover:border-blue-600 hover:text-blue-600';
+        }
+    });
+    
+    // 重新渲染地图和列表
+    if (window.currentStations) {
+        const allStationsForMap = [...(window.currentStations || [])];
+        if (window.allStationsDef && window.allStationsDef.length > 0) {
+            const fetchedNames = new Set((window.currentStations || []).map(s => s.name));
+            window.allStationsDef.forEach(def => {
+                const devdescript = def.devdescript || def.name;
+                if (!fetchedNames.has(devdescript)) {
+                    const matchesProvider = !currentProvider || def.provider_id === currentProvider;
+                    if (matchesProvider) {
+                        allStationsForMap.push({
+                            name: devdescript,
+                            free: 0,
+                            total: 0,
+                            used: 0,
+                            error: 0,
+                            devids: def.devid ? [def.devid] : [],
+                            provider_id: def.provider_id || 'unknown',
+                            provider_name: def.provider_name || '未知',
+                            campus: def.areaid,
+                            lat: def.latitude,
+                            lon: def.longitude,
+                            isFetched: false
+                        });
+                    }
+                }
+            });
+        }
+        renderMap(allStationsForMap);
+        renderList(window.currentStations, window.allStationsDef);
+    }
+}
+
 async function loadConfig() {
     try {
         const response = await fetch('/api/config');
@@ -1205,18 +1433,67 @@ async function loadConfig() {
 
 // 页面加载时初始化
 document.addEventListener('DOMContentLoaded', async () => {
+    // 默认校区为玉泉校区
+    currentCampus = "2143";
+    
     initMap();
     setupCampusSelector();
     setupProviderSelector();
     // 初始化地图选择器状态
     updateMapSelector();
+    // 设置默认校区为玉泉校区按钮样式
+    const yuquanButton = document.getElementById('campus-yuquan');
+    const allButton = document.getElementById('campus-all');
+    const zjgButton = document.getElementById('campus-zjg');
+    if (yuquanButton) {
+        // 更新按钮样式为激活状态
+        yuquanButton.className = 'px-3 lg:px-4 py-2 rounded-md text-xs lg:text-sm font-medium transition-all duration-200 bg-blue-600 text-white border border-blue-600 hover:bg-blue-700';
+    }
+    if (allButton) {
+        allButton.className = 'px-3 lg:px-4 py-2 rounded-md text-xs lg:text-sm font-medium transition-all duration-200 bg-gray-100 text-gray-700 border border-gray-300 hover:bg-blue-50 hover:border-blue-600 hover:text-blue-600';
+    }
+    if (zjgButton) {
+        zjgButton.className = 'px-3 lg:px-4 py-2 rounded-md text-xs lg:text-sm font-medium transition-all duration-200 bg-gray-100 text-gray-700 border border-gray-300 hover:bg-blue-50 hover:border-blue-600 hover:text-blue-600';
+    }
+    
+    // 尝试自动检测最近的校区
+    try {
+        const nearestCampus = await detectNearestCampus();
+        if (nearestCampus) {
+            console.log(`检测到最近校区: ${nearestCampus.name}, 当前校区: ${currentCampus}`);
+            const isSwitched = nearestCampus.id !== currentCampus;
+            if (isSwitched) {
+                // 切换到最近的校区
+                console.log(`切换到最近校区: ${nearestCampus.name}`);
+                switchToCampus(nearestCampus.id);
+            }
+            // 无论是否切换，都显示通知（让用户知道检测到了位置）
+            console.log(`显示通知: ${nearestCampus.name}, 距离: ${nearestCampus.distance.toFixed(2)} 公里, 已切换: ${isSwitched}`);
+            showLocationNotification(nearestCampus.name, nearestCampus.distance, isSwitched);
+        } else {
+            console.warn('未找到最近校区');
+        }
+    } catch (error) {
+        console.log('自动检测校区失败，使用默认校区:', error.message);
+        console.log('错误详情:', error);
+        
+        // 如果是 HTTPS 相关错误，显示友好提示
+        if (error.message && error.message.includes('HTTPS')) {
+            console.warn('提示: 地理位置功能需要 HTTPS 环境。当前网站使用 HTTP，无法获取位置信息。');
+        } else if (error.message && error.message.includes('权限')) {
+            console.warn('提示: 用户拒绝了位置权限，无法自动检测最近校区。');
+        }
+        // 为了不打扰用户，这里不显示错误通知，静默使用默认校区
+    }
+    
     // 加载配置
     await loadConfig();
     // 先加载服务商列表
     await loadProviders();
     // 先加载关注列表（从 localStorage），再获取站点状态
     fetchWatchlist();
-    fetchStatus();
+    // 确保在 fetchStatus 执行时 currentCampus 仍然是正确的值
+    await fetchStatus();
     
     // 使用配置的间隔自动刷新
     setInterval(() => {
