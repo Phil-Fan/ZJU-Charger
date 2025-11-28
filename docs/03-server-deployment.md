@@ -61,47 +61,62 @@ python run_server.py --log-level DEBUG
 
 ## 生产环境部署
 
-### 方式一：使用 systemd（Linux）
+### 方式一：使用 Caddy
 
-1. 创建 systemd 服务文件 `/etc/systemd/system/zju-charger.service`：
+```shell title="Caddy 安装"
+sudo apt install -y debian-keyring debian-archive-keyring apt-transport-https curl
+curl -1sLf 'https://dl.cloudsmith.io/public/caddy/stable/gpg.key' | sudo gpg --dearmor -o /usr/share/keyrings/caddy-stable-archive-keyring.gpg
+curl -1sLf 'https://dl.cloudsmith.io/public/caddy/stable/debian.deb.txt' | sudo tee /etc/apt/sources.list.d/caddy-stable.list
+sudo apt update
+sudo apt install caddy
+```
 
-    ```ini
-    [Unit]
-    Description=ZJU Charger API Server
-    After=network.target
+确认安装成功
 
-    [Service]
-    Type=simple
-    User=your-user
-    WorkingDirectory=/path/to/Charge-in-ZJU
-    Environment="PATH=/path/to/venv/bin"
-    ExecStart=/path/to/venv/bin/python run_server.py --host 0.0.0.0 --port 8000 --log-file /var/log/zju-charger/server.log
-    Restart=always
-    RestartSec=10
+```shell
+caddy version
+```
 
-    [Install]
-    WantedBy=multi-user.target
-    ```
+```shell
+sudo systemctl start caddy
+sudo systemctl status caddy
+```
 
-2. 启动服务：
+启动 Caddy：
 
-    ```shell
-    sudo systemctl daemon-reload
-    sudo systemctl enable zju-charger
-    sudo systemctl start zju-charger
-    ```
+```shell
+sudo caddy run --config /etc/caddy/Caddyfile
+```
 
-3. 查看状态：
 
-    ```shell
-    sudo systemctl status zju-charger
-    ```
 
-4. 查看日志：
+配置 Caddyfile：
 
-    ```shell
-    sudo journalctl -u zju-charger -f
-    ```
+```shell
+https://charger.philfan.cn {
+    reverse_proxy http://127.0.0.1:8000
+}
+```
+
+配置 SSL：
+
+```shell
+sudo caddy cert issue --domain charger.philfan.cn
+```
+
+```shell
+caddy run --config ./Caddyfile.json
+```
+
+```shell
+caddy start --config ./Caddyfile.json
+```
+
+```shell
+sudo systemctl start caddy
+```
+
+caddy 的默认配置文件在 `/etc/caddy/Caddyfile` 下。
 
 ### 方式二：使用 Docker（待实现）
 
