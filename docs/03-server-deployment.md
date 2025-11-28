@@ -32,6 +32,11 @@ API_PORT=2333
 # 数据抓取配置
 FETCH_INTERVAL=60
 BACKEND_FETCH_INTERVAL=300
+
+# 限流配置
+RATE_LIMIT_ENABLED=true
+RATE_LIMIT_DEFAULT=60/hour
+RATE_LIMIT_STATUS=3/minute
 ```
 
 ### 3. 启动服务器
@@ -187,6 +192,9 @@ TODO: Docker 部署方案
 - `DINGTALK_SECRET`: 钉钉机器人签名密钥
 - `FETCH_INTERVAL`: 前端自动刷新间隔（秒，默认：60）
 - `BACKEND_FETCH_INTERVAL`: 后端定时抓取间隔（秒，默认：300）
+- `RATE_LIMIT_ENABLED`: 是否启用接口限流（默认：true）
+- `RATE_LIMIT_DEFAULT`: 默认限流规则（默认："60/hour"，即每小时 60 次）
+- `RATE_LIMIT_STATUS`: `/api/status` 端点限流规则（默认："3/minute"，即每分钟 3 次）
 
 ### 服务商配置
 
@@ -195,6 +203,76 @@ TODO: Docker 部署方案
 ```env
 # 格式：PROVIDER_<PROVIDER_ID>_<CONFIG_KEY>=<value>
 PROVIDER_NEPTUNE_API_URL=https://api.example.com
+```
+
+## 限流功能
+
+### 功能说明
+
+系统集成了 `slowapi` 进行接口限流，防止 API 被恶意调用或过度请求。限流基于客户端 IP 地址进行统计。
+
+### 限流规则
+
+- **默认规则** (`RATE_LIMIT_DEFAULT`): `60/hour` - 适用于大部分 API 端点（`/api`, `/api/config`, `/api/providers`, `/ding/webhook`）
+- **`/api/status` 端点** (`RATE_LIMIT_STATUS`): `3/minute` - 更严格限制，允许前端 60 秒刷新 + 容错（手动刷新等）
+
+限流规则格式：`"数量/时间单位"`，支持的时间单位：
+
+- `second` - 秒
+- `minute` - 分钟
+- `hour` - 小时
+- `day` - 天
+
+示例：
+
+- `30/minute` - 每分钟 30 次
+- `100/hour` - 每小时 100 次
+- `1000/day` - 每天 1000 次
+
+### 存储后端
+
+系统默认使用**内存存储**（memory），适用于单实例部署：
+
+- **内存占用**：每个 IP 的限流计数器约占用 100-200 字节
+- **适用场景**：单实例部署、IP 数量有限（<1000 个不同 IP）
+- **估算**：1000 个不同 IP ≈ 100-200 KB，10000 个 ≈ 1-2 MB
+- **优点**：无需额外服务，配置简单，性能好
+- **缺点**：多实例无法共享限流状态，重启后限流计数丢失
+
+如需使用 **Redis 存储**（适用于多实例部署），可在代码中修改配置：
+
+1. 安装 Redis：
+
+   ```bash
+   # Ubuntu/Debian
+   sudo apt-get install redis-server
+   
+   # macOS
+   brew install redis
+   ```
+
+2. 修改 `server/api.py` 中的 limiter 初始化代码：
+
+   ```python
+   # 将内存存储改为 Redis 存储
+   limiter = Limiter(key_func=get_remote_address, storage_uri="redis://localhost:6379/0")
+   ```
+
+### 前端处理
+
+当请求超过限流阈值时，服务器会返回 HTTP 429 状态码。前端会自动检测并显示友好的弹窗提醒，提示用户请求过于频繁，请稍后再试。
+
+### 配置示例
+
+```env
+# 启用限流
+RATE_LIMIT_ENABLED=true
+
+# 默认限流规则（每小时60次）
+RATE_LIMIT_DEFAULT=60/hour
+
+# /api/status 端点限流规则（每分钟3次）
+RATE_LIMIT_STATUS=3/minute
 ```
 
 ## 日志配置
@@ -246,7 +324,8 @@ sudo iptables-save
 2. **防火墙配置**：只开放必要的端口
 3. **定期更新**：定期更新依赖包和系统
 4. **备份数据**：定期备份 `data/` 目录
-5. **限制访问**：使用 Nginx 限制访问频率
+5. **接口限流**：系统已集成接口限流功能，可根据实际情况调整限流规则
+6. **限制访问**：使用 Nginx 限制访问频率（可选，系统已内置限流）
 
 ## 备份和恢复
 

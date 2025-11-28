@@ -11,6 +11,11 @@ import logging
 import asyncio
 from pathlib import Path
 
+# 导入 slowapi 限流相关模块
+from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi.util import get_remote_address
+from slowapi.errors import RateLimitExceeded
+
 # 配置日志（如果还没有配置）
 if not logging.getLogger().handlers:
     from server.logging_config import setup_logging
@@ -31,6 +36,33 @@ app = FastAPI(title="ZJU Charger API", version="1.0.0")
 
 logger.info("初始化 FastAPI 应用")
 
+# 初始化 slowapi 限流器（如果启用限流）
+# 默认使用内存存储，如需使用 Redis，可修改为：
+# limiter = Limiter(key_func=get_remote_address, storage_uri="redis://localhost:6379/0")
+if Config.RATE_LIMIT_ENABLED:
+    limiter = Limiter(key_func=get_remote_address)
+    # 注册限流异常处理器
+    app.state.limiter = limiter
+    app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+    logger.info(
+        f"slowapi 限流器已初始化（使用内存存储），默认规则: {Config.RATE_LIMIT_DEFAULT}, /api/status 规则: {Config.RATE_LIMIT_STATUS}"
+    )
+else:
+    limiter = None
+    logger.info("限流功能已禁用")
+
+
+def apply_rate_limit(limit_str: str):
+    """应用限流装饰器的辅助函数"""
+    if limiter:
+        return limiter.limit(limit_str)
+    else:
+        # 如果限流未启用，返回一个无操作的装饰器
+        def noop_decorator(func):
+            return func
+
+        return noop_decorator
+
 
 @app.on_event("startup")
 async def startup_event():
@@ -44,6 +76,12 @@ async def startup_event():
     logger.info(f"  - API 地址: {Config.API_HOST}:{Config.API_PORT}")
     logger.info(f"  - 前端自动刷新间隔: {Config.FETCH_INTERVAL} 秒")
     logger.info(f"  - 后端定时抓取间隔: {Config.BACKEND_FETCH_INTERVAL} 秒")
+    if Config.RATE_LIMIT_ENABLED:
+        logger.info(f"  - 接口限流: 已启用")
+        logger.info(f"    - 默认限流规则: {Config.RATE_LIMIT_DEFAULT}")
+        logger.info(f"    - /api/status 限流规则: {Config.RATE_LIMIT_STATUS}")
+    else:
+        logger.info(f"  - 接口限流: 已禁用")
 
     # 启动后台定时抓取任务
     asyncio.create_task(background_fetch_task())
@@ -160,7 +198,8 @@ async def root():
 
 
 @app.get("/api")
-async def api_info():
+@apply_rate_limit(Config.RATE_LIMIT_DEFAULT)
+async def api_info(request: Request):
     """API 信息"""
     return {
         "message": "ZJU Charger API",
@@ -174,14 +213,16 @@ async def api_info():
 
 
 @app.get("/api/config")
-async def get_config():
+@apply_rate_limit(Config.RATE_LIMIT_DEFAULT)
+async def get_config(request: Request):
     """返回前端配置信息"""
     logger.info("收到 /api/config 请求")
     return {"fetch_interval": Config.FETCH_INTERVAL}  # 前端自动刷新间隔（秒）
 
 
 @app.get("/api/providers")
-async def get_providers():
+@apply_rate_limit(Config.RATE_LIMIT_DEFAULT)
+async def get_providers(request: Request):
     """返回可用服务商列表"""
     logger.info("收到 /api/providers 请求")
     try:
@@ -195,7 +236,10 @@ async def get_providers():
 
 
 @app.get("/api/status")
-async def get_status(provider: Optional[str] = None, id: Optional[str] = None):
+@apply_rate_limit(Config.RATE_LIMIT_STATUS)
+async def get_status(
+    request: Request, provider: Optional[str] = None, id: Optional[str] = None
+):
     """查询所有站点状态（优先从缓存读取）
 
     Args:

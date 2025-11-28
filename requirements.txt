@@ -1,6 +1,7 @@
 aiohttp
 DingtalkChatbot
 fastapi
+slowapi
 uvicorn
 python-dotenv
-httpx 
+httpx

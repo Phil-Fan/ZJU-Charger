@@ -18,6 +18,19 @@ from server.config import Config
 
 router = APIRouter(prefix="/ding", tags=["ding"])
 
+# 初始化限流器（如果启用限流）
+# 默认使用内存存储，如需使用 Redis，可修改为：
+# from slowapi import Limiter
+# from slowapi.util import get_remote_address
+# limiter = Limiter(key_func=get_remote_address, storage_uri="redis://localhost:6379/0")
+if Config.RATE_LIMIT_ENABLED:
+    from slowapi import Limiter
+    from slowapi.util import get_remote_address
+
+    limiter = Limiter(key_func=get_remote_address)
+else:
+    limiter = None
+
 
 class DingMessage(BaseModel):
     """钉钉消息模型"""
@@ -41,13 +54,36 @@ def verify_signature(timestamp, sign, secret):
     return sign == sign_to_verify
 
 
+# 应用限流装饰器的辅助函数
+def apply_rate_limit(limit_str: str):
+    """应用限流装饰器的辅助函数"""
+    if limiter:
+        return limiter.limit(limit_str)
+    else:
+        # 如果限流未启用，返回一个无操作的装饰器
+        def noop_decorator(func):
+            return func
+
+        return noop_decorator
+
+
 @router.post("/webhook")
+@apply_rate_limit(Config.RATE_LIMIT_DEFAULT)
 async def ding_webhook(
     request: Request,
     timestamp: str = Header(None, alias="timestamp"),
     sign: str = Header(None, alias="sign"),
 ):
     """接收钉钉 webhook 请求"""
+    return await _ding_webhook_impl(request, timestamp, sign)
+
+
+async def _ding_webhook_impl(
+    request: Request,
+    timestamp: str = None,
+    sign: str = None,
+):
+    """钉钉 webhook 实现逻辑"""
     # 验证签名
     if not verify_signature(timestamp or "", sign or "", Config.DINGTALK_SECRET):
         raise HTTPException(status_code=403, detail="签名验证失败")

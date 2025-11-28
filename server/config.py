@@ -27,6 +27,15 @@ class Config:
         os.getenv("BACKEND_FETCH_INTERVAL", "300")
     )  # 后端定时抓取间隔（秒），默认300秒（5分钟）
 
+    # 限流配置
+    RATE_LIMIT_ENABLED = os.getenv("RATE_LIMIT_ENABLED", "true").lower() == "true"
+    RATE_LIMIT_DEFAULT = os.getenv(
+        "RATE_LIMIT_DEFAULT", "60/hour"
+    )  # 默认限流规则，适用于大部分 API 端点
+    RATE_LIMIT_STATUS = os.getenv(
+        "RATE_LIMIT_STATUS", "3/minute"
+    )  # /api/status 端点限流规则，允许前端60秒刷新+容错
+
     # 服务商配置
     # 格式：PROVIDER_<PROVIDER_ID>_<CONFIG_KEY>=<value>
     # 例如：PROVIDER_NEPTUNE_API_URL=https://api.example.com
