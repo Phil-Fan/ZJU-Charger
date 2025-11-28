@@ -181,11 +181,36 @@ function initMap() {
 }
 
 function manualPrint() {
-    if (printer) {
+    if (!map) {
+        console.error('地图未初始化');
+        alert('地图未初始化，无法下载');
+        return;
+    }
+    
+    if (!printer) {
+        // 尝试重新初始化打印机
+        if (typeof L.easyPrint !== 'undefined' && currentTileLayer) {
+            printer = L.easyPrint({
+                tileLayer: currentTileLayer,
+                exportOnly: true,
+                filename: 'ZJU-Charger-Map',
+                sizeModes: ['Current'],
+                hidden: true,
+                hideControlContainer: true
+            }).addTo(map);
+        } else {
+            console.error('下载插件不可用');
+            alert('下载功能不可用，请检查地图是否已加载');
+            return;
+        }
+    }
+    
+    try {
         const filename = 'ZJU-Charger-Map-' + new Date().toISOString().replace(/[:.]/g, '-').slice(0, -5);
         printer.printMap('CurrentSize', filename);
-    } else {
-        console.warn('下载插件未初始化');
+    } catch (error) {
+        console.error('下载地图失败:', error);
+        alert('下载失败: ' + (error.message || '未知错误'));
     }
 }
 
@@ -215,6 +240,22 @@ function switchMap(mapProvider) {
     // 创建新图层
     currentTileLayer = L.tileLayer(provider.tileLayer, provider.options);
     currentTileLayer.addTo(map);
+    
+    // 重新初始化下载地图插件（因为图层已更换）
+    if (printer) {
+        map.removeControl(printer);
+        printer = null;
+    }
+    if (typeof L.easyPrint !== 'undefined' && currentTileLayer) {
+        printer = L.easyPrint({
+            tileLayer: currentTileLayer,
+            exportOnly: true,
+            filename: 'ZJU-Charger-Map',
+            sizeModes: ['Current'],
+            hidden: true,  // 隐藏默认控件
+            hideControlContainer: true
+        }).addTo(map);
+    }
     
     // 更新选择器状态
     updateMapSelector();
