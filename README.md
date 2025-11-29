@@ -17,7 +17,7 @@ flowchart TD
 
     B["本地网页<br/>index.html<br/>(AJAX)"]
 
-    C["FastAPI API 服务<br/>/api/status 实时查询<br/>支持多服务商筛选"]
+    C["FastAPI API 服务<br/>/api/status 实时查询<br/>支持多服务商筛选<br/>后台定时抓取"]
 
     D["钉钉机器人<br/>全部"]
 
@@ -25,6 +25,9 @@ flowchart TD
 
     F1["NeptuneProvider<br/>尼普顿服务商"]
     F2["其他服务商<br/>可扩展..."]
+
+    G["数据存储<br/>latest.json<br/>缓存"]
+    H["Supabase 数据库<br/>历史数据记录<br/>可选"]
 
     %% 连接关系
     A --> |查询| C
@@ -38,6 +41,9 @@ flowchart TD
     E --> |管理| F2
     F1 --> |实时抓取| E
     F2 --> |实时抓取| E
+    
+    C --> |保存缓存| G
+    C --> |记录历史| H
 ```
 
 所有查询来源（网页、钉钉、GitHub Action）都调用统一 API 和 ProviderManager，逻辑完全不重复。系统采用多服务商架构，支持同时显示和筛选多个服务商的充电桩数据。
@@ -49,6 +55,9 @@ flowchart TD
 - [x] 多服务商架构支持，可同时显示和筛选多个服务商数据
 - [x] 网页地图可视化（Leaflet）；支持高德地图、OpenStreetMap；支持服务商筛选功能（前端下拉框）；支持校区筛选功能（玉泉、紫金港）
 - [x] 前端关注列表功能
+- [x] 后台定时抓取任务，自动更新缓存
+- [x] Supabase 数据库支持，记录历史使用情况数据（可选）
+- [x] 接口限流功能，防止恶意调用
 - [ ] 钉钉机器人交互
 
 网页效果：
@@ -63,10 +72,16 @@ flowchart TD
 
 ## 最小抓取示例
 
-详见 [get_status.py](./get_status.py)。
+可以使用 `server/minium_get_status.py` 进行简单的状态查询：
 
 ```shell
-python get_status.py --address 50359163
+python server/minium_get_status.py --address 50359163
+```
+
+或者直接使用 API 接口：
+
+```shell
+curl http://localhost:8000/api/status?id=29e30f45
 ```
 
 ## 项目结构
@@ -81,9 +96,12 @@ project/
 │   └── fetch.py              # 统一抓取逻辑（异步，已废弃）
 ├── server/
 │   ├── api.py                # FastAPI 主服务
-│   ├── storage.py            # 数据存储管理
+│   ├── storage.py            # 数据存储管理（latest.json）
 │   ├── config.py             # 环境变量配置（支持服务商配置）
-│   └── station_loader.py     # 站点信息加载器
+│   ├── station_loader.py     # 站点信息加载器
+│   ├── db.py                 # Supabase 数据库操作
+│   ├── supabase_client.py    # Supabase 客户端管理
+│   └── logging_config.py     # 日志配置
 ├── ding/
 │   ├── bot.py                # 钉钉机器人封装
 │   ├── webhook.py            # 钉钉 webhook 路由
@@ -99,7 +117,8 @@ project/
 │   ├── README.md             # 快捷指令使用说明
 │   └── *.shortcut            # 快捷指令文件
 ├── run_server.py             # 服务器启动脚本
-└── requirements.txt         # 依赖库
+├── serve.sh                  # 快速启动脚本（自动安装依赖）
+└── requirements.txt          # 依赖库
 ```
 
 ## 文档
@@ -112,6 +131,7 @@ project/
 - [Fetcher 文档](./docs/04-fetcher.md) - 如何添加新服务商、更新站点信息
 - [钉钉机器人文档](./docs/05-dingbot.md) - 钉钉机器人配置和使用
 - [Script 快捷指令文档](./docs/06-script-shortcuts.md) - iOS 快捷指令使用指南
+- [Supabase 数据库架构](./docs/07-supabase-schema.md) - Supabase 数据库表结构和使用说明
 
 ## 许可证
 

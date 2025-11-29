@@ -8,6 +8,7 @@
 - [Fetcher 文档](./04-fetcher.md)
 - [钉钉机器人文档](./05-dingbot.md)
 - [Script 快捷指令文档](./06-script-shortcuts.md)
+- [Supabase 数据库架构](./07-supabase-schema.md)
 
 ## 📝 文档更新
 

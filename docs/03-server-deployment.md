@@ -27,7 +27,7 @@ DINGTALK_SECRET=your_secret_here
 
 # API 服务器配置
 API_HOST=0.0.0.0
-API_PORT=2333
+API_PORT=8000
 
 # 数据抓取配置
 FETCH_INTERVAL=60
@@ -37,15 +37,31 @@ BACKEND_FETCH_INTERVAL=300
 RATE_LIMIT_ENABLED=true
 RATE_LIMIT_DEFAULT=60/hour
 RATE_LIMIT_STATUS=3/minute
+
+# Supabase 数据库配置（可选，用于记录使用情况历史数据）
+# 注意：应使用 Service Role Key（服务端密钥），而非 anon key
+# 在 Supabase Dashboard → Settings → API 中可以找到 Service Role Key
+SUPABASE_URL=https://your-project.supabase.co
+SUPABASE_KEY=your-service-role-key-here
 ```
 
 ### 3. 启动服务器
+
+#### 方式一：使用启动脚本（推荐）
+
+```bash
+./serve.sh
+```
+
+`serve.sh` 脚本会自动安装依赖并启动服务器，适合快速启动。
+
+#### 方式二：使用 Python 脚本
 
 ```bash
 python run_server.py
 ```
 
-也可以增加一些启动参数
+也可以增加一些启动参数：
 
 ```bash
 # 基本启动
@@ -195,6 +211,30 @@ TODO: Docker 部署方案
 - `RATE_LIMIT_ENABLED`: 是否启用接口限流（默认：true）
 - `RATE_LIMIT_DEFAULT`: 默认限流规则（默认："60/hour"，即每小时 60 次）
 - `RATE_LIMIT_STATUS`: `/api/status` 端点限流规则（默认："3/minute"，即每分钟 3 次）
+- `SUPABASE_URL`: Supabase 项目 URL（可选，用于记录使用情况历史数据）
+- `SUPABASE_KEY`: Supabase Service Role Key（可选，**必须使用 Service Role Key，而非 anon key**）
+
+### 后台抓取任务
+
+系统启动后会自动启动后台定时抓取任务，定期从服务商 API 抓取数据并更新缓存。
+
+**功能说明**：
+
+- 启动时立即执行一次抓取，初始化缓存
+- 之后按 `BACKEND_FETCH_INTERVAL` 间隔定时抓取
+- 抓取的数据会保存到 `data/latest.json` 缓存文件
+- 如果配置了 Supabase，数据会同时写入数据库
+
+**夜间暂停时段**：
+
+- 系统在 **0:10-5:50** 时段会暂停后台抓取任务
+- 这是为了避免在充电桩使用率极低的时间段进行不必要的抓取
+- 在暂停时段内，API 仍可正常访问（使用缓存数据）
+
+**数据流程**：
+
+1. 后台任务定时抓取 → 保存到 `latest.json` → 写入 Supabase（如果配置）
+2. API 请求优先读取缓存 → 缓存不存在时实时抓取
 
 ### 服务商配置
 
@@ -327,6 +367,54 @@ sudo iptables-save
 5. **接口限流**：系统已集成接口限流功能，可根据实际情况调整限流规则
 6. **限制访问**：使用 Nginx 限制访问频率（可选，系统已内置限流）
 
+## Supabase 数据库配置
+
+### supbase 功能说明
+
+系统支持将充电桩使用情况数据记录到 Supabase 数据库，用于历史数据分析和趋势统计。
+
+### 配置步骤
+
+1. **创建 Supabase 项目**
+   - 访问 [Supabase](https://supabase.com) 并创建新项目
+   - 等待项目初始化完成
+
+2. **创建数据库表**
+   - 在 Supabase Dashboard → SQL Editor 中执行建表语句
+   - 参考 `docs/07-supabase-schema.md` 中的完整 SQL 语句
+
+3. **获取 Service Role Key**
+   - 进入项目 → Settings → API
+   - 复制 `service_role` key（**注意：这是私密密钥，不要暴露给客户端**）
+   - **重要**：必须使用 Service Role Key，不要使用 anon key
+
+4. **配置环境变量**
+
+   ```env
+   SUPABASE_URL=https://your-project.supabase.co
+   SUPABASE_KEY=your-service-role-key-here
+   ```
+
+5. **验证配置**
+   - 启动服务器后，检查日志中是否有 "Supabase 客户端初始化成功" 消息
+   - 检查日志中是否有 "成功批量插入 X 条使用情况记录" 消息
+
+### 数据记录
+
+配置 Supabase 后，系统会在每次后台抓取时自动：
+
+- 更新站点基础信息（`stations` 表）
+- 插入使用情况快照（`usage` 表）
+
+### 注意事项
+
+- **安全性**：Service Role Key 具有完整数据库访问权限，请妥善保管，不要提交到代码仓库
+- **数据量**：每次抓取都会插入记录，`usage` 表会快速增长，建议定期清理旧数据
+- **错误处理**：数据库操作失败不会影响主流程（`latest.json` 的保存）
+- **RLS 策略**：使用 Service Role Key 会绕过 RLS 策略，适合服务端应用
+
+更多详细信息请参考 `docs/07-supabase-schema.md`。
+
 ## 备份和恢复
 
 ### 备份
@@ -347,4 +435,15 @@ tar -xzf backup-20250101.tar.gz
 
 # 恢复配置
 tar -xzf config-backup-20250101.tar.gz
+```
+
+### Supabase 数据备份
+
+如果配置了 Supabase，建议定期备份数据库：
+
+```bash
+# 使用 Supabase CLI 备份（需要先安装 Supabase CLI）
+supabase db dump -f backup-$(date +%Y%m%d).sql
+
+# 或通过 Supabase Dashboard → Database → Backups 创建备份
 ```
