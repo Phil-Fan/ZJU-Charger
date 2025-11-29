@@ -5,3 +5,4 @@ slowapi
 uvicorn
 python-dotenv
 httpx
+supabase

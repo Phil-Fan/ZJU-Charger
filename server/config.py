@@ -36,6 +36,14 @@ class Config:
         "RATE_LIMIT_STATUS", "3/minute"
     )  # /api/status 端点限流规则，允许前端60秒刷新+容错
 
+    # Supabase 配置
+    # 注意：建议使用 Service Role Key（服务端密钥），它会绕过 RLS 策略
+    # 在 Supabase Dashboard → Settings → API 中可以找到 Service Role Key
+    SUPABASE_URL = os.getenv("SUPABASE_URL", "")
+    SUPABASE_KEY = os.getenv(
+        "SUPABASE_KEY", ""
+    )  # 应使用 Service Role Key，而非 anon key
+
     # 服务商配置
     # 格式：PROVIDER_<PROVIDER_ID>_<CONFIG_KEY>=<value>
     # 例如：PROVIDER_NEPTUNE_API_URL=https://api.example.com

@@ -30,6 +30,7 @@ from fetcher.provider_manager import ProviderManager
 from server.config import Config
 from server.storage import load_latest, save_latest
 from server.station_loader import load_stations
+from server.db import upsert_station, batch_insert_usage
 from ding.webhook import router as ding_router
 
 app = FastAPI(title="ZJU Charger API", version="1.0.0")
@@ -398,6 +399,28 @@ async def background_fetch_task():
                     logger.info(
                         f"首次后台抓取数据成功并已保存，共 {station_count} 个站点"
                     )
+
+                    # 写入 Supabase 数据库
+                    try:
+                        stations = result.get("stations", [])
+                        snapshot_time = result.get("updated_at", _get_timestamp())
+
+                        # 更新站点基础信息
+                        for station in stations:
+                            upsert_station(station)
+
+                        # 批量插入使用情况记录
+                        if batch_insert_usage(stations, snapshot_time):
+                            logger.info(
+                                f"首次后台抓取数据已写入 Supabase，共 {station_count} 个站点"
+                            )
+                        else:
+                            logger.warning("首次后台抓取数据写入 Supabase 失败")
+                    except Exception as e:
+                        logger.error(
+                            f"首次后台抓取数据写入 Supabase 异常: {str(e)}",
+                            exc_info=True,
+                        )
                 else:
                     logger.error("首次后台抓取数据保存失败")
         except Exception as e:
@@ -432,6 +455,27 @@ async def background_fetch_task():
             if save_latest(result):
                 station_count = len(result.get("stations", []))
                 logger.info(f"后台抓取数据成功并已保存，共 {station_count} 个站点")
+
+                # 写入 Supabase 数据库
+                try:
+                    stations = result.get("stations", [])
+                    snapshot_time = result.get("updated_at", _get_timestamp())
+
+                    # 更新站点基础信息
+                    for station in stations:
+                        upsert_station(station)
+
+                    # 批量插入使用情况记录
+                    if batch_insert_usage(stations, snapshot_time):
+                        logger.info(
+                            f"后台抓取数据已写入 Supabase，共 {station_count} 个站点"
+                        )
+                    else:
+                        logger.warning("后台抓取数据写入 Supabase 失败")
+                except Exception as e:
+                    logger.error(
+                        f"后台抓取数据写入 Supabase 异常: {str(e)}", exc_info=True
+                    )
             else:
                 logger.error("后台抓取数据保存失败")
         except Exception as e:
