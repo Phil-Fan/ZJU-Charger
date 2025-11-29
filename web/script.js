@@ -41,42 +41,42 @@ const DEFAULT_ZOOM = 17; // 放大级别，便于查看充电桩位置
 const MAP_CONFIG = {
     dataCoordSystem: 'BD09',  // 数据源坐标系：'WGS84'、'GCJ02' 或 'BD09'
     webCoordSystem: 'GCJ02',  // 当前地图使用的坐标系：'WGS84'、'GCJ02' 或 'BD09'
-    useMap: 'gaode'           // 当前使用的地图后端：'osm'、'gaode' 或 'baidu'
+    useMap: 'gaode'           // 当前使用的地图后端：'osm'、'gaode'、'baidu' 或 'tencent'
 };
 
-// 地图后端配置
-const MAP_PROVIDERS = {
+// 地图图层配置（使用 Leaflet.ChineseTmsProviders）
+// 每个地图服务可以包含多个图层（如普通地图、卫星图、地形图等）
+const MAP_LAYERS_CONFIG = {
     osm: {
         name: 'OpenStreetMap',
         coordSystem: 'WGS84',
-        tileLayer: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
-        options: {
-            attribution: '© OpenStreetMap contributors',
-            maxZoom: 19
+        layers: {
+            'OSM': 'OSM.Normal.Map'
         }
     },
     gaode: {
         name: '高德地图',
         coordSystem: 'GCJ02',
-        tileLayer: 'http://webrd0{s}.is.autonavi.com/appmaptile?lang=zh_cn&size=1&scale=1&style=8&x={x}&y={y}&z={z}',
-        options: {
-            subdomains: ['1', '2', '3', '4'],
-            minZoom: 1, // Leaflet 允许的最小缩放级别
-            minNativeZoom: 3, // 高德地图实际支持的最小缩放级别，小于此级别时使用3级瓦片缩小显示
-            maxZoom: 19, // Leaflet 允许的最大缩放级别
-            maxNativeZoom: 18, // 高德地图实际支持的最大缩放级别，超过此级别时使用18级瓦片放大显示
-            attribution: '© 高德地图'
+        layers: {
+            '高德': 'GaoDe.Normal.Map',
+            '高德影像': ['GaoDe.Satellite.Map', 'GaoDe.Satellite.Annotion']
         }
     },
     baidu: {
         name: '百度地图',
         coordSystem: 'BD09',
-        tileLayer: 'http://api{s}.map.bdimg.com/customimage/tile?&x={x}&y={y}&z={z}&udt=20160928&scale=1',
-        options: {
-            subdomains: ['0', '1', '2'],
-            minZoom: 3,
-            maxZoom: 19,
-            attribution: '© 百度地图'
+        crs: 'Baidu',  // 百度地图需要使用特殊的 CRS
+        layers: {
+            '百度': 'Baidu.Normal.Map',
+            '百度影像': ['Baidu.Satellite.Map', 'Baidu.Satellite.Annotion']
+        }
+    },
+    tencent: {
+        name: '腾讯地图',
+        coordSystem: 'GCJ02',
+        layers: {
+            '腾讯': 'Tencent.Normal.Map',
+            '腾讯影像': 'Tencent.Satellite.Map'
         }
     }
 };
@@ -171,25 +171,75 @@ function initMap() {
     // 转换中心点坐标
     const center = convertCoord(centerCoord[0], centerCoord[1]);
     
-    // 创建地图实例
-    map = L.map('map').setView(center, DEFAULT_ZOOM);
+    // 获取默认地图配置
+    const defaultMapConfig = MAP_LAYERS_CONFIG[MAP_CONFIG.useMap];
     
-    // 创建所有底图图层
+    // 创建地图实例（百度地图需要使用特殊的 CRS）
+    const mapOptions = {
+        center: center,
+        zoom: DEFAULT_ZOOM
+    };
+    
+    if (defaultMapConfig && defaultMapConfig.crs === 'Baidu' && L.CRS && L.CRS.Baidu) {
+        mapOptions.crs = L.CRS.Baidu;
+        mapOptions.minZoom = 3;
+        mapOptions.maxZoom = 18;
+        mapOptions.attributionControl = false;
+    }
+    
+    map = L.map('map', mapOptions);
+    
+    // 创建所有底图图层（使用 Leaflet.ChineseTmsProviders）
     baseLayers = {};
-    Object.entries(MAP_PROVIDERS).forEach(([key, provider]) => {
-        const tileLayer = L.tileLayer(provider.tileLayer, provider.options);
-        baseLayers[provider.name] = tileLayer;
+    
+    Object.entries(MAP_LAYERS_CONFIG).forEach(([key, config]) => {
+        Object.entries(config.layers).forEach(([layerName, layerConfig]) => {
+            let layer;
+            
+            // 百度地图的特殊配置
+            const isBaidu = config.crs === 'Baidu';
+            const layerOptions = {
+                maxZoom: 18,
+                minZoom: isBaidu ? 3 : 5
+            };
+            
+            // 如果 layerConfig 是数组，表示需要组合多个图层（如卫星图+标注）
+            if (Array.isArray(layerConfig)) {
+                const layerGroup = [];
+                layerConfig.forEach(layerType => {
+                    const tileLayer = L.tileLayer.chinaProvider(layerType, layerOptions);
+                    layerGroup.push(tileLayer);
+                });
+                layer = L.layerGroup(layerGroup);
+            } else {
+                // 单个图层
+                layer = L.tileLayer.chinaProvider(layerConfig, layerOptions);
+            }
+            
+            // 直接使用图层名称（已包含服务商信息）
+            baseLayers[layerName] = layer;
+        });
     });
     
     // 添加默认地图图层
-    const defaultProvider = MAP_PROVIDERS[MAP_CONFIG.useMap];
-    currentTileLayer = baseLayers[defaultProvider.name];
+    const defaultLayerName = Object.keys(MAP_LAYERS_CONFIG[MAP_CONFIG.useMap].layers)[0];
+    currentTileLayer = baseLayers[defaultLayerName];
+    
+    // 如果 currentTileLayer 是 L.layerGroup，需要获取第一个实际的 tileLayer 用于下载插件
+    let actualTileLayer = currentTileLayer;
+    if (currentTileLayer instanceof L.LayerGroup) {
+        const layers = currentTileLayer.getLayers();
+        if (layers.length > 0) {
+            actualTileLayer = layers[0];
+        }
+    }
+    
     currentTileLayer.addTo(map);
     
     // 初始化下载地图插件（隐藏默认控件，使用自定义按钮）
-    if (typeof L.easyPrint !== 'undefined' && currentTileLayer) {
+    if (typeof L.easyPrint !== 'undefined' && actualTileLayer) {
         printer = L.easyPrint({
-            tileLayer: currentTileLayer,
+            tileLayer: actualTileLayer,
             exportOnly: true,
             filename: 'ZJU-Charger-Map',
             sizeModes: ['Current'],
@@ -199,15 +249,162 @@ function initMap() {
     }
     
     // 监听底图切换事件，更新 currentTileLayer 和下载插件
-    map.on('baselayerchange', function(e) {
+    function handleBaseLayerChange(e) {
         currentTileLayer = e.layer;
-        MAP_CONFIG.useMap = Object.keys(MAP_PROVIDERS).find(key => 
-            MAP_PROVIDERS[key].name === e.name
-        ) || MAP_CONFIG.useMap;
         
-        // 更新坐标系配置
-        const provider = MAP_PROVIDERS[MAP_CONFIG.useMap];
-        MAP_CONFIG.webCoordSystem = provider.coordSystem;
+        // 从图层名称中查找对应的地图配置
+        const layerName = e.name;
+        let foundMapKey = null;
+        
+        for (const [key, config] of Object.entries(MAP_LAYERS_CONFIG)) {
+            if (config.layers.hasOwnProperty(layerName)) {
+                foundMapKey = key;
+                break;
+            }
+        }
+        
+        if (foundMapKey) {
+            MAP_CONFIG.useMap = foundMapKey;
+            const provider = MAP_LAYERS_CONFIG[foundMapKey];
+            MAP_CONFIG.webCoordSystem = provider.coordSystem;
+            
+            // 如果切换到百度地图，且当前地图没有使用 Baidu CRS，需要重新初始化地图
+            if (provider.crs === 'Baidu' && L.CRS && L.CRS.Baidu) {
+                const currentCRS = map.options.crs;
+                const isBaiduCRS = currentCRS && currentCRS.code === 'EPSG:900913';
+                
+                if (!isBaiduCRS) {
+                    // 保存当前视图状态
+                    const currentCenter = map.getCenter();
+                    const currentZoom = map.getZoom();
+                    
+                    // 重新初始化地图（使用百度 CRS）
+                    map.remove();
+                    const mapOptions = {
+                        center: currentCenter,
+                        zoom: currentZoom,
+                        crs: L.CRS.Baidu,
+                        minZoom: 3,
+                        maxZoom: 18,
+                        attributionControl: false
+                    };
+                    map = L.map('map', mapOptions);
+                    
+                    // 重新添加所有图层
+                    Object.entries(baseLayers).forEach(([name, layer]) => {
+                        if (name === layerName) {
+                            layer.addTo(map);
+                            currentTileLayer = layer;
+                        }
+                    });
+                    
+                    // 重新添加图层控制器
+                    updateLayerControl();
+                    
+                    // 重新添加标记（如果有）
+                    if (window.currentStations && window.currentStations.length > 0) {
+                        const allStationsForMap = [...(window.currentStations || [])];
+                        if (window.allStationsDef && window.allStationsDef.length > 0) {
+                            const fetchedNames = new Set((window.currentStations || []).map(s => s.name));
+                            window.allStationsDef.forEach(def => {
+                                const devdescript = def.devdescript || def.name;
+                                if (!fetchedNames.has(devdescript)) {
+                                    allStationsForMap.push({
+                                        name: devdescript,
+                                        free: 0,
+                                        total: 0,
+                                        used: 0,
+                                        error: 0,
+                                        devids: def.devid ? [def.devid] : [],
+                                        provider_id: def.provider_id || 'unknown',
+                                        provider_name: def.provider_name || '未知',
+                                        campus: def.areaid,
+                                        lat: def.latitude,
+                                        lon: def.longitude,
+                                        isFetched: false
+                                    });
+                                }
+                            });
+                        }
+                        renderMap(allStationsForMap, false);
+                    }
+                    
+                    // 重新绑定事件
+                    map.on('baselayerchange', handleBaseLayerChange);
+                    return; // 提前返回，避免重复处理
+                }
+            } else {
+                // 如果从百度地图切换到其他地图，且当前使用 Baidu CRS，需要重新初始化地图
+                const currentCRS = map.options.crs;
+                const isBaiduCRS = currentCRS && currentCRS.code === 'EPSG:900913';
+                
+                if (isBaiduCRS) {
+                    // 保存当前视图状态
+                    const currentCenter = map.getCenter();
+                    const currentZoom = map.getZoom();
+                    
+                    // 重新初始化地图（使用默认 CRS）
+                    map.remove();
+                    const mapOptions = {
+                        center: currentCenter,
+                        zoom: currentZoom
+                    };
+                    map = L.map('map', mapOptions);
+                    
+                    // 重新添加所有图层
+                    Object.entries(baseLayers).forEach(([name, layer]) => {
+                        if (name === layerName) {
+                            layer.addTo(map);
+                            currentTileLayer = layer;
+                        }
+                    });
+                    
+                    // 重新添加图层控制器
+                    updateLayerControl();
+                    
+                    // 重新添加标记（如果有）
+                    if (window.currentStations && window.currentStations.length > 0) {
+                        const allStationsForMap = [...(window.currentStations || [])];
+                        if (window.allStationsDef && window.allStationsDef.length > 0) {
+                            const fetchedNames = new Set((window.currentStations || []).map(s => s.name));
+                            window.allStationsDef.forEach(def => {
+                                const devdescript = def.devdescript || def.name;
+                                if (!fetchedNames.has(devdescript)) {
+                                    allStationsForMap.push({
+                                        name: devdescript,
+                                        free: 0,
+                                        total: 0,
+                                        used: 0,
+                                        error: 0,
+                                        devids: def.devid ? [def.devid] : [],
+                                        provider_id: def.provider_id || 'unknown',
+                                        provider_name: def.provider_name || '未知',
+                                        campus: def.areaid,
+                                        lat: def.latitude,
+                                        lon: def.longitude,
+                                        isFetched: false
+                                    });
+                                }
+                            });
+                        }
+                        renderMap(allStationsForMap, false);
+                    }
+                    
+                    // 重新绑定事件
+                    map.on('baselayerchange', handleBaseLayerChange);
+                    return; // 提前返回，避免重复处理
+                }
+            }
+        }
+        
+        // 获取实际的 tileLayer（用于下载插件）
+        let actualTileLayer = currentTileLayer;
+        if (currentTileLayer instanceof L.LayerGroup) {
+            const layers = currentTileLayer.getLayers();
+            if (layers.length > 0) {
+                actualTileLayer = layers[0];
+            }
+        }
         
         // 如果当前位置标记存在，需要重新转换坐标
         if (currentLocationMarker) {
@@ -220,9 +417,9 @@ function initMap() {
             map.removeControl(printer);
             printer = null;
         }
-        if (typeof L.easyPrint !== 'undefined' && currentTileLayer) {
+        if (typeof L.easyPrint !== 'undefined' && actualTileLayer) {
             printer = L.easyPrint({
-                tileLayer: currentTileLayer,
+                tileLayer: actualTileLayer,
                 exportOnly: true,
                 filename: 'ZJU-Charger-Map',
                 sizeModes: ['Current'],
@@ -258,7 +455,9 @@ function initMap() {
             }
             renderMap(allStationsForMap, false);
         }
-    });
+    }
+    
+    map.on('baselayerchange', handleBaseLayerChange);
     
     // 初始化图层控制器（即使还没有数据，也要显示底图选择）
     updateLayerControl();
@@ -272,10 +471,19 @@ function manualPrint() {
     }
     
     if (!printer) {
+        // 获取实际的 tileLayer
+        let actualTileLayer = currentTileLayer;
+        if (currentTileLayer instanceof L.LayerGroup) {
+            const layers = currentTileLayer.getLayers();
+            if (layers.length > 0) {
+                actualTileLayer = layers[0];
+            }
+        }
+        
         // 尝试重新初始化打印机
-        if (typeof L.easyPrint !== 'undefined' && currentTileLayer) {
+        if (typeof L.easyPrint !== 'undefined' && actualTileLayer) {
             printer = L.easyPrint({
-                tileLayer: currentTileLayer,
+                tileLayer: actualTileLayer,
                 exportOnly: true,
                 filename: 'ZJU-Charger-Map',
                 sizeModes: ['Current'],
