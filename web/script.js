@@ -301,6 +301,33 @@ function initMap() {
                     // 重新添加图层控制器
                     updateLayerControl();
                     
+                    // 重新初始化下载地图插件
+                    if (printer) {
+                        try {
+                            map.removeControl(printer);
+                        } catch (e) {
+                            // 忽略错误，printer 可能已经无效
+                        }
+                        printer = null;
+                    }
+                    let actualTileLayerForPrint = currentTileLayer;
+                    if (currentTileLayer instanceof L.LayerGroup) {
+                        const layers = currentTileLayer.getLayers();
+                        if (layers.length > 0) {
+                            actualTileLayerForPrint = layers[0];
+                        }
+                    }
+                    if (typeof L.easyPrint !== 'undefined' && actualTileLayerForPrint && map) {
+                        printer = L.easyPrint({
+                            tileLayer: actualTileLayerForPrint,
+                            exportOnly: true,
+                            filename: 'ZJU-Charger-Map',
+                            sizeModes: ['Current'],
+                            hidden: true,
+                            hideControlContainer: true
+                        }).addTo(map);
+                    }
+                    
                     // 重新添加标记（如果有）
                     if (window.currentStations && window.currentStations.length > 0) {
                         const allStationsForMap = [...(window.currentStations || [])];
@@ -361,6 +388,28 @@ function initMap() {
                     
                     // 重新添加图层控制器
                     updateLayerControl();
+                    
+                    // 重新初始化下载地图插件
+                    if (printer) {
+                        printer = null; // 清除旧的 printer 引用
+                    }
+                    let actualTileLayerForPrint2 = currentTileLayer;
+                    if (currentTileLayer instanceof L.LayerGroup) {
+                        const layers = currentTileLayer.getLayers();
+                        if (layers.length > 0) {
+                            actualTileLayerForPrint2 = layers[0];
+                        }
+                    }
+                    if (typeof L.easyPrint !== 'undefined' && actualTileLayerForPrint2 && map) {
+                        printer = L.easyPrint({
+                            tileLayer: actualTileLayerForPrint2,
+                            exportOnly: true,
+                            filename: 'ZJU-Charger-Map',
+                            sizeModes: ['Current'],
+                            hidden: true,
+                            hideControlContainer: true
+                        }).addTo(map);
+                    }
                     
                     // 重新添加标记（如果有）
                     if (window.currentStations && window.currentStations.length > 0) {
@@ -470,7 +519,34 @@ function manualPrint() {
         return;
     }
     
+    // 检查 printer 是否有效（是否仍然关联到当前地图）
+    let needReinitPrinter = false;
     if (!printer) {
+        needReinitPrinter = true;
+    } else {
+        // 检查 printer 是否仍然关联到当前地图
+        try {
+            // 尝试访问 printer 的内部地图对象
+            if (!printer._map || printer._map !== map) {
+                needReinitPrinter = true;
+            }
+        } catch (e) {
+            // 如果访问失败，说明 printer 已无效
+            needReinitPrinter = true;
+        }
+    }
+    
+    if (needReinitPrinter) {
+        // 清除旧的 printer
+        if (printer) {
+            try {
+                map.removeControl(printer);
+            } catch (e) {
+                // 忽略错误
+            }
+            printer = null;
+        }
+        
         // 获取实际的 tileLayer
         let actualTileLayer = currentTileLayer;
         if (currentTileLayer instanceof L.LayerGroup) {
@@ -481,7 +557,7 @@ function manualPrint() {
         }
         
         // 尝试重新初始化打印机
-        if (typeof L.easyPrint !== 'undefined' && actualTileLayer) {
+        if (typeof L.easyPrint !== 'undefined' && actualTileLayer && map) {
             printer = L.easyPrint({
                 tileLayer: actualTileLayer,
                 exportOnly: true,
@@ -502,7 +578,39 @@ function manualPrint() {
         printer.printMap('CurrentSize', filename);
     } catch (error) {
         console.error('下载地图失败:', error);
-        alert('下载失败: ' + (error.message || '未知错误'));
+        // 如果失败，尝试重新初始化 printer 并重试一次
+        if (printer) {
+            try {
+                map.removeControl(printer);
+            } catch (e) {
+                // 忽略错误
+            }
+            printer = null;
+            
+            // 重新初始化并重试
+            let actualTileLayer = currentTileLayer;
+            if (currentTileLayer instanceof L.LayerGroup) {
+                const layers = currentTileLayer.getLayers();
+                if (layers.length > 0) {
+                    actualTileLayer = layers[0];
+                }
+            }
+            if (typeof L.easyPrint !== 'undefined' && actualTileLayer && map) {
+                printer = L.easyPrint({
+                    tileLayer: actualTileLayer,
+                    exportOnly: true,
+                    filename: 'ZJU-Charger-Map',
+                    sizeModes: ['Current'],
+                    hidden: true,
+                    hideControlContainer: true
+                }).addTo(map);
+                printer.printMap('CurrentSize', filename);
+            } else {
+                alert('下载失败: ' + (error.message || '未知错误'));
+            }
+        } else {
+            alert('下载失败: ' + (error.message || '未知错误'));
+        }
     }
 }
 
@@ -1716,7 +1824,6 @@ function showCurrentLocation() {
             <svg class="animate-spin" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <path d="M21 12a9 9 0 11-6.219-8.56"/>
             </svg>
-            <span class="hidden sm:inline">定位中...</span>
         `;
     }
 
@@ -1811,7 +1918,6 @@ function showCurrentLocation() {
                         <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path>
                         <circle cx="12" cy="10" r="3"></circle>
                     </svg>
-                    <span class="hidden sm:inline">定位</span>
                 `;
             }
         },
@@ -1842,7 +1948,6 @@ function showCurrentLocation() {
                         <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path>
                         <circle cx="12" cy="10" r="3"></circle>
                     </svg>
-                    <span class="hidden sm:inline">定位</span>
                 `;
             }
         },
