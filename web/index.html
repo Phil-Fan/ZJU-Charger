@@ -130,11 +130,15 @@
     </div>
     
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/proj4js/2.19.10/proj4.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/proj4leaflet/1.0.2/proj4leaflet.min.js"></script>
-    <script src="leaflet.ChineseTmsProviders.js"></script>
+    <!-- <script src="https://cdnjs.cloudflare.com/ajax/libs/proj4js/2.19.10/proj4.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/proj4leaflet/1.0.2/proj4leaflet.min.js"></script> -->
+    <script src="js/leaflet.ChineseTmsProviders.js"></script>
     <script src="https://unpkg.com/leaflet-easyprint@2.1.9/dist/bundle.js"></script>
-    <script src="leaflet-coord-transform.js"></script>
-    <script src="script.js"></script>
+    <script src="js/leaflet-coord-transform.js"></script>
+    <!-- 模块化脚本，按依赖顺序加载 -->
+    <script src="js/config.js"></script>
+    <script src="js/map.js"></script>
+    <script src="js/data.js"></script>
+    <script src="js/ui.js"></script>
 </body>
 </html>
