@@ -78,7 +78,7 @@ CREATE INDEX IF NOT EXISTS idx_stations_campus ON stations(campus_id);
 | `hash_id` | TEXT | 站点唯一标识，`md5(provider:name)` |
 | `name` | TEXT | 站点名称 |
 | `provider` | TEXT | 服务商标识（如 `neptune`） |
-| `campus_id` | INTEGER | 校区 ID（如 1=玉泉, 2=紫金港） |
+| `campus_id` | INTEGER | 校区 ID（如 1=玉泉，2=紫金港） |
 | `campus_name` | TEXT | 校区名称（可选） |
 | `lat` | NUMERIC(10,6) | 纬度 |
 | `lon` | NUMERIC(10,6) | 经度 |
