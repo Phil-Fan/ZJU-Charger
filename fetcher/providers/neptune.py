@@ -116,7 +116,7 @@ class NeptuneProvider(ProviderBase):
             free += portstatus.count("0")
             used += portstatus.count("1")
             error += portstatus.count("3")
-            total = len(portstatus)
+            total += len(portstatus)
 
         # 站点聚合状态数据
         aggregated_status = {
