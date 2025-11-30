@@ -4,9 +4,12 @@ import asyncio
 import logging
 from typing import List, Dict, Any, Optional
 from datetime import datetime, timezone, timedelta
+from pathlib import Path
 
-from .provider_base import ProviderBase
-from .providers.neptune import NeptuneProvider
+# 假设这些类和函数已正确导入
+import aiohttp 
+from fetcher.providers.provider_base import ProviderBase
+from fetcher.providers.neptune import NeptuneProvider
 
 logger = logging.getLogger(__name__)
 
@@ -15,6 +18,7 @@ class ProviderManager:
     """服务商管理器
 
     负责注册、管理和调用所有服务商适配器
+    职责：初始化、管理生命周期、并发调度、结果合并与格式化。
     """
 
     def __init__(self):
@@ -24,149 +28,96 @@ class ProviderManager:
 
     def _register_providers(self):
         """注册所有可用服务商"""
-        # 注册尼普顿服务商
-        neptune = NeptuneProvider()
+        neptune = NeptuneProvider() 
         self.providers.append(neptune)
-        logger.info(f"已注册服务商: {neptune.provider_name} ({neptune.provider_id})")
+        logger.info(f"已注册服务商: {neptune.provider}")
 
-    def get_provider(self, provider_id: str) -> Optional[ProviderBase]:
-        """根据 ID 获取服务商
+    async def initialize_providers(self):
+        """初始化所有服务商：加载其对应的 CSV 站点数据。"""
+        logger.info("开始初始化并加载所有服务商的站点数据...")
+        
+        load_tasks = [prov.load_stations() for prov in self.providers]
+        results = await asyncio.gather(*load_tasks, return_exceptions=True)
+        
+        for prov, result in zip(self.providers, results):
+            if isinstance(result, Exception):
+                logger.error(f"服务商 {prov.provider} 加载站点数据失败: {result}", exc_info=True)
+            elif result is not None:
+                logger.info(f"服务商 {prov.provider} 成功加载 {len(result)} 个站点。")
 
-        Args:
-            provider_id: 服务商标识
-
-        Returns:
-            服务商实例，如果不存在返回 None
-        """
-        for provider in self.providers:
-            if provider.provider_id == provider_id:
-                return provider
-        return None
-
-    def list_providers(self) -> List[Dict[str, str]]:
-        """获取所有可用服务商列表
-
-        Returns:
-            服务商列表，格式：[{"id": "neptune", "name": "尼普顿"}, ...]
-        """
-        return [
-            {"id": provider.provider_id, "name": provider.provider_name}
-            for provider in self.providers
-        ]
-
+    # --- 核心调度和合并 ---
+    
     async def fetch_all_providers(self) -> Dict[str, Any]:
-        """并发获取所有服务商的数据
-
-        Returns:
-            包含所有服务商数据的字典，格式：
-            {
-                "provider_id": {
-                    "status": "success" | "error",
-                    "data": {...} | None,
-                    "error": str | None
-                },
-                ...
-            }
-        """
+        """并发获取所有服务商的数据"""
         results = {}
 
-        # 并发获取所有服务商数据
-        tasks = []
-        provider_list = []
+        async with aiohttp.ClientSession() as session:
+            tasks = []
+            
+            for prov in self.providers:
+                # fetch_status 负责返回 List[Dict] 且 Dict 已规范化
+                tasks.append(prov.fetch_status(session))
 
-        for provider in self.providers:
-            async with provider:
-                task = provider.fetch_status()
-                tasks.append(task)
-                provider_list.append(provider)
+            fetch_results = await asyncio.gather(*tasks, return_exceptions=True)
 
-        fetch_results = await asyncio.gather(*tasks, return_exceptions=True)
-
-        # 处理结果
-        for idx, (provider, result) in enumerate(zip(provider_list, fetch_results)):
-            if isinstance(result, Exception):
-                logger.error(
-                    f"服务商 {provider.provider_name} 获取数据失败: {result}",
-                    exc_info=True,
-                )
-                results[provider.provider_id] = {
-                    "status": "error",
-                    "data": None,
-                    "error": str(result),
-                }
-            elif result is None:
-                logger.warning(f"服务商 {provider.provider_name} 返回空数据")
-                results[provider.provider_id] = {
-                    "status": "error",
-                    "data": None,
-                    "error": "返回空数据",
-                }
-            else:
-                results[provider.provider_id] = {
-                    "status": "success",
-                    "data": result,
-                    "error": None,
-                }
+            # 处理结果
+            for prov, result in zip(self.providers, fetch_results):
+                provider_key = prov.provider
+                if isinstance(result, Exception):
+                    logger.error(f"服务商 {provider_key} 获取数据失败: {result}", exc_info=True)
+                    results[provider_key] = {"status": "error", "data": None, "error": str(result)}
+                elif result is None:
+                    results[provider_key] = {"status": "error", "data": None, "error": "抓取失败或返回空数据"}
+                else:
+                    results[provider_key] = {"status": "success", "data": result, "error": None}
 
         return results
 
     def merge_stations(self, providers_data: Dict[str, Any]) -> List[Dict[str, Any]]:
-        """合并多个服务商的站点数据到统一格式
-
-        Args:
-            providers_data: fetch_all_providers() 返回的数据
-
-        Returns:
-            合并后的站点列表，每个站点包含 provider_id 和 provider_name
-        """
+        """合并多个服务商的站点数据到统一格式"""
         all_stations = []
 
-        for provider_id, result in providers_data.items():
-            if result["status"] != "success" or result["data"] is None:
-                continue
-
-            # fetch_status 现在直接返回统一格式的站点列表
-            if isinstance(result["data"], list):
-                all_stations.extend(result["data"])
+        for result in providers_data.values():
+            if result["status"] == "success" and result["data"] is not None:
+                data = result["data"]
+                
+                # 假设 fetch_status 严格返回 List[Dict[str, Any]]
+                if isinstance(data, list):
+                    # 无需再进行规范化，直接扩展列表
+                    all_stations.extend(data) 
 
         return all_stations
 
-    def _get_timestamp(self):
+    # --- 时间戳和格式化方法 ---
+
+    def _get_timestamp(self) -> str:
         """获取当前时间戳（UTC+8）"""
         tz_utc_8 = timezone(timedelta(hours=8))
         return datetime.now(tz_utc_8).isoformat()
 
     async def fetch_and_format(
-        self, provider_id: Optional[str] = None
+        self, provider: Optional[str] = None
     ) -> Optional[Dict[str, Any]]:
-        """获取数据并格式化为 API 响应格式
-
-        Args:
-            provider_id: 可选，如果指定则只获取该服务商的数据
-
-        Returns:
-            API 响应格式的数据，格式：
-            {
-                "updated_at": "2025-01-01T00:00:00+08:00",
-                "stations": [...]
-            }
-        """
-        if provider_id:
-            # 只获取指定服务商的数据
-            provider = self.get_provider(provider_id)
-            if provider is None:
-                logger.error(f"未找到服务商: {provider_id}")
+        """获取数据并格式化为 API 响应格式"""
+        
+        if provider:
+            provider_obj = next((prov for prov in self.providers if prov.provider == provider), None)
+            if provider_obj is None:
+                logger.error(f"未找到服务商: {provider}")
                 return None
-
-            async with provider:
-                stations = await provider.fetch_status()
+            
+            async with aiohttp.ClientSession() as session:
+                stations = await provider_obj.fetch_status(session)
+                
                 if stations is None:
                     return None
-
+                
+                # 直接返回单个服务商的结果
                 return {"updated_at": self._get_timestamp(), "stations": stations}
-        else:
-            # 获取所有服务商的数据并合并
-            providers_data = await self.fetch_all_providers()
-            stations = self.merge_stations(providers_data)
 
-            return {"updated_at": self._get_timestamp(), "stations": stations}
+        # 获取所有服务商数据
+        providers_data = await self.fetch_all_providers()
+        stations = self.merge_stations(providers_data)
+        
+        # 即使 stations 为空列表，也应返回格式化的结构
+        return {"updated_at": self._get_timestamp(), "stations": stations}
