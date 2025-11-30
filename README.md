@@ -73,7 +73,12 @@ flowchart TD
 
 ### 快捷指令
 
-![shortcut](assets/shortcut.png)
+[ZJU Charger.shortcut](https://www.icloud.com/shortcuts/1545aeee457046dbacba42ef0ab6285d)
+
+支持快速查询关注的几个站点的状态，并可以添加到主屏幕，方便随时查看。
+操作步骤详见 [Script 快捷指令文档](./docs/06-script-shortcuts.md#使用方法)。
+
+![shortcut](assets/shortcut_result.jpg)
 
 ### 钉钉 Webhook 机器人
 
