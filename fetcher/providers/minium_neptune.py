@@ -18,6 +18,8 @@ def get_device_info(address: str):
         obj.get("portstatur", "").count("1"),
         "总数",
         len(obj.get("portstatur", "")),
+        obj.get("longitude", ""),
+        obj.get("latitude", ""),
     ]
 
 
@@ -27,4 +29,5 @@ if __name__ == "__main__":
         "--address", type=str, default="50359163", help="设备地址 (默认: 50359163)"
     )
     args = parser.parse_args()
+    # get_device_info(args.address)
     print(*get_device_info(args.address), sep="\n")
