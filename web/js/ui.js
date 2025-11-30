@@ -426,11 +426,12 @@ function switchToCampus(campusId) {
     if (window.currentStations) {
         const allStationsForMap = [...(window.currentStations || [])];
         if (window.allStationsDef && window.allStationsDef.length > 0) {
-            const fetchedNames = new Set((window.currentStations || []).map(s => s.name));
+            const fetchedIds = new Set((window.currentStations || []).map(s => (s.hash_id || s.id || s.name || '').toString()));
             window.allStationsDef.forEach(def => {
                 const devdescript = def.devdescript || def.name;
-                if (!fetchedNames.has(devdescript)) {
-                    // 不再按服务商过滤地图显示（由图层控制器控制）
+                const defKey = (def.hash_id || def.id || devdescript || '').toString();
+                if (!fetchedIds.has(defKey)) {
+                    const campusValue = def.campus_id ?? def.areaid ?? null;
                     allStationsForMap.push({
                         name: devdescript,
                         free: 0,
@@ -438,11 +439,11 @@ function switchToCampus(campusId) {
                         used: 0,
                         error: 0,
                         devids: def.devid ? [def.devid] : [],
-                        provider_id: def.provider_id || 'unknown',
-                        provider_name: def.provider_name || '未知',
-                        campus: def.areaid,
+                        provider: def.provider || 'unknown',
+                        campus_id: campusValue != null ? campusValue.toString() : null,
                         lat: def.latitude,
                         lon: def.longitude,
+                        hash_id: defKey,
                         isFetched: false
                     });
                 }
@@ -476,11 +477,12 @@ function setupCampusSelector() {
                 // 合并所有站点用于地图显示（包括未抓取的）
                 const allStationsForMap = [...(window.currentStations || [])];
                 if (window.allStationsDef && window.allStationsDef.length > 0) {
-                    const fetchedNames = new Set((window.currentStations || []).map(s => s.name));
+                    const fetchedIds = new Set((window.currentStations || []).map(s => (s.hash_id || s.id || s.name || '').toString()));
                     window.allStationsDef.forEach(def => {
                         const devdescript = def.devdescript || def.name;
-                        if (!fetchedNames.has(devdescript)) {
-                            // 不再按服务商过滤地图显示（由图层控制器控制）
+                        const defKey = (def.hash_id || def.id || devdescript || '').toString();
+                        if (!fetchedIds.has(defKey)) {
+                            const campusValue = def.campus_id ?? def.areaid ?? null;
                             allStationsForMap.push({
                                 name: devdescript,
                                 free: 0,
@@ -488,18 +490,18 @@ function setupCampusSelector() {
                                 used: 0,
                                 error: 0,
                                 devids: def.devid ? [def.devid] : [],
-                                provider_id: def.provider_id || 'unknown',
-                                provider_name: def.provider_name || '未知',
-                                campus: def.areaid,
+                                provider: def.provider || 'unknown',
+                                campus_id: campusValue != null ? campusValue.toString() : null,
                                 lat: def.latitude,
                                 lon: def.longitude,
+                                hash_id: defKey,
                                 isFetched: false
                             });
                         }
                     });
                 }
                 renderMap(allStationsForMap, true); // 校区切换时允许调整视野
-                renderList(window.currentStations);
+                renderList(window.currentStations, window.allStationsDef || []);
             }
         });
     });
@@ -525,7 +527,7 @@ function setupProviderSelector() {
                         window.allStationsDef.forEach(def => {
                             const devdescript = def.devdescript || def.name;
                             if (!fetchedNames.has(devdescript)) {
-                                // 不再按服务商过滤地图显示（由图层控制器控制）
+                                const campusValue = def.campus_id ?? def.areaid ?? null;
                                 allStationsForMap.push({
                                     name: devdescript,
                                     free: 0,
@@ -533,9 +535,8 @@ function setupProviderSelector() {
                                     used: 0,
                                     error: 0,
                                     devids: def.devid ? [def.devid] : [],
-                                    provider_id: def.provider_id || 'unknown',
-                                    provider_name: def.provider_name || '未知',
-                                    campus: def.areaid,
+                                    provider: def.provider || 'unknown',
+                                    campus_id: campusValue != null ? campusValue.toString() : null,
                                     lat: def.latitude,
                                     lon: def.longitude,
                                     isFetched: false
@@ -570,8 +571,8 @@ document.addEventListener('DOMContentLoaded', async () => {
         console.error('未找到主题切换按钮');
     }
     
-    // 默认校区为玉泉校区
-    currentCampus = "2143";
+    // 默认显示全部校区
+    currentCampus = "";
     
     initMap();
     setupCampusSelector();
@@ -581,12 +582,11 @@ document.addEventListener('DOMContentLoaded', async () => {
     const yuquanButton = document.getElementById('campus-yuquan');
     const allButton = document.getElementById('campus-all');
     const zjgButton = document.getElementById('campus-zjg');
-    if (yuquanButton) {
-        // 更新按钮样式为激活状态
-        yuquanButton.className = 'px-3 lg:px-4 py-2 rounded-md text-xs lg:text-sm font-medium transition-all duration-200 bg-blue-600 dark:bg-blue-500 text-white border border-blue-600 dark:border-blue-500 hover:bg-blue-700 dark:hover:bg-blue-600';
-    }
     if (allButton) {
-        allButton.className = 'px-3 lg:px-4 py-2 rounded-md text-xs lg:text-sm font-medium transition-all duration-200 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 border border-gray-300 dark:border-gray-600 hover:bg-blue-50 dark:hover:bg-blue-900/30 hover:border-blue-600 dark:hover:border-blue-500 hover:text-blue-600 dark:hover:text-blue-400';
+        allButton.className = 'px-3 lg:px-4 py-2 rounded-md text-xs lg:text-sm font-medium transition-all duration-200 bg-blue-600 dark:bg-blue-500 text-white border border-blue-600 dark:border-blue-500 hover:bg-blue-700 dark:hover:bg-blue-600';
+    }
+    if (yuquanButton) {
+        yuquanButton.className = 'px-3 lg:px-4 py-2 rounded-md text-xs lg:text-sm font-medium transition-all duration-200 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 border border-gray-300 dark:border-gray-600 hover:bg-blue-50 dark:hover:bg-blue-900/30 hover:border-blue-600 dark:hover:border-blue-500 hover:text-blue-600 dark:hover:text-blue-400';
     }
     if (zjgButton) {
         zjgButton.className = 'px-3 lg:px-4 py-2 rounded-md text-xs lg:text-sm font-medium transition-all duration-200 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 border border-gray-300 dark:border-gray-600 hover:bg-blue-50 dark:hover:bg-blue-900/30 hover:border-blue-600 dark:hover:border-blue-500 hover:text-blue-600 dark:hover:text-blue-400';
@@ -597,11 +597,12 @@ document.addEventListener('DOMContentLoaded', async () => {
         const nearestCampus = await detectNearestCampus();
         if (nearestCampus) {
             console.log(`检测到最近校区: ${nearestCampus.name}, 当前校区: ${currentCampus}`);
-            const isSwitched = nearestCampus.id !== currentCampus;
+            const targetId = nearestCampus.id ? nearestCampus.id.toString() : '';
+            const isSwitched = targetId && targetId !== currentCampus;
             if (isSwitched) {
                 // 切换到最近的校区
                 console.log(`切换到最近校区: ${nearestCampus.name}`);
-                switchToCampus(nearestCampus.id);
+                switchToCampus(targetId);
             }
             // 无论是否切换，都显示通知（让用户知道检测到了位置）
             console.log(`显示通知: ${nearestCampus.name}, 距离: ${nearestCampus.distance.toFixed(2)} 公里, 已切换: ${isSwitched}`);
@@ -669,4 +670,3 @@ document.addEventListener('DOMContentLoaded', async () => {
         fetchStatus();
     }, fetchInterval * 1000); // 转换为毫秒
 });
-

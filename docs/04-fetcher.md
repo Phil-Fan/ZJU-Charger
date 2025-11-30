@@ -128,15 +128,15 @@ def _register_providers(self):
 
 ```text
 name,provider,campus,lat,lon,device_ids
-玉泉科工楼东侧，neptune,2143,30.266195,120.130415,[10574]
-玉泉教七北侧，neptune,2143,30.270660,120.126950,"[10223,10222,9501]"
+玉泉科工楼东侧，neptune,1,30.266195,120.130415,[10574]
+玉泉教七北侧，neptune,1,30.270660,120.126950,"[10223,10222,9501]"
 ```
 
 字段含义：
 
 - `name`：站点名称；
 - `provider`：服务商唯一标识（与 `.env`、前端筛选一致）；
-- `campus`：校区 ID（`2143`=玉泉，`1774`=紫金港，或自定义 ID）；
+- `campus`：校区 ID（默认 `CAMPUS_NAME_MAP = {1: 玉泉, 2: 紫金港}`，可在 `fetcher/station.py` 中扩展）；
 - `lat`/`lon`：站点地理坐标；
 - `device_ids`：该站点包含的全部设备/桩号，JSON 数组格式。
 
@@ -158,7 +158,7 @@ CSV 每行会被转换为如下结构（仅示意）：
   "hash_id": "29e30f45",
   "name": "玉泉教三",
   "provider": "neptune",
-  "campus_id": 2143,
+  "campus_id": 1,
   "campus_name": "玉泉校区",
   "lat": 30.2699,
   "lon": 120.1249,
@@ -191,8 +191,8 @@ API 层会从 `latest` + `stations` 表组装 `/api/status` 所需的 JSON，前
 
 ### 校区 ID 规范
 
-- `2143`: 玉泉校区
-- `1774`: 紫金港校区
+- `1`: 玉泉校区
+- `2`: 紫金港校区
 - 其他值：其他校区（可根据实际情况定义）
 
 ## 测试

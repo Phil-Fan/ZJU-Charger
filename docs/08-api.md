@@ -50,7 +50,7 @@ curl http://127.0.0.1:8000/api/stations
       "id": "3e262917",
       "name": "玉泉教三北侧",
       "provider": "neptune",
-      "campus": 2143,
+      "campus": 1,
       "latitude": 30.2696,
       "longitude": 120.1293,
       "devids": ["8120"]

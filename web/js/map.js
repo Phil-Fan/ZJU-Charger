@@ -260,6 +260,7 @@ function initMap() {
                 window.allStationsDef.forEach(def => {
                     const devdescript = def.devdescript || def.name;
                     if (!fetchedNames.has(devdescript)) {
+                        const campusValue = def.campus_id ?? def.areaid ?? null;
                         allStationsForMap.push({
                             name: devdescript,
                             free: 0,
@@ -267,9 +268,8 @@ function initMap() {
                             used: 0,
                             error: 0,
                             devids: def.devid ? [def.devid] : [],
-                            provider_id: def.provider_id || 'unknown',
-                            provider_name: def.provider_name || '未知',
-                            campus: def.areaid,
+                            provider: def.provider || 'unknown',
+                            campus_id: campusValue != null ? campusValue.toString() : null,
                             lat: def.latitude,
                             lon: def.longitude,
                             isFetched: false
@@ -484,8 +484,8 @@ function renderMap(stations, allowFitBounds = false) {
     // 按服务商分组站点
     const stationsByProvider = {};
     filteredStations.forEach(station => {
-        const providerId = station.provider_id || 'unknown';
-        const providerName = station.provider_name || '未知服务商';
+        const providerId = station.provider || 'unknown';
+        const providerName = station.provider || '未知服务商';
         
         if (!stationsByProvider[providerId]) {
             stationsByProvider[providerId] = {
@@ -601,4 +601,3 @@ function renderMap(stations, allowFitBounds = false) {
         map.setView(currentCenter, currentZoom);
     }
 }
-

@@ -1,7 +1,7 @@
 // 数据管理功能
 
-// 当前选中的校区 campus（空字符串表示全部），默认选择玉泉校区
-let currentCampus = "2143";
+// 当前选中的校区 campus（空字符串表示全部）
+let currentCampus = "";
 
 // 当前选中的服务商（空字符串表示全部）
 let currentProvider = "";
@@ -66,12 +66,30 @@ function showRateLimitAlert() {
     }, 3000);
 }
 
+function normalizeStation(station) {
+    if (!station) {
+        return station;
+    }
+    const normalized = { ...station };
+    const campusCandidate = station.campus_id ?? station.campus ?? station.areaid ?? station.areaId;
+    normalized.campus_id = campusCandidate !== undefined && campusCandidate !== null && campusCandidate !== ''
+        ? campusCandidate.toString()
+        : null;
+    delete normalized.campus;
+    delete normalized.areaid;
+    delete normalized.areaId;
+    return normalized;
+}
+
 // 过滤站点（按校区）
 function filterStationsByCampus(stations) {
     if (!currentCampus) {
         return stations;  // 显示全部
     }
-    const filtered = stations.filter(s => s.campus && s.campus.toString() === currentCampus);
+    const filtered = stations.filter(station => {
+        const campusId = station.campus_id;
+        return campusId && campusId.toString() === currentCampus;
+    });
     console.log(`[filterStationsByCampus] currentCampus=${currentCampus}, total=${stations.length}, filtered=${filtered.length}`);
     return filtered;
 }
@@ -81,7 +99,7 @@ function filterStationsByProvider(stations) {
     if (!currentProvider) {
         return stations;  // 显示全部
     }
-    return stations.filter(s => s.provider_id === currentProvider);
+    return stations.filter(s => s.provider === currentProvider);
 }
 
 // 从 localStorage 加载关注列表
@@ -173,8 +191,8 @@ async function toggleWatchlist(devids, devdescript, providerId) {
         // 尝试从当前站点数据中查找 providerId
         if (window.currentStations && devdescript) {
             const station = window.currentStations.find(s => s.name === devdescript);
-            if (station && station.provider_id) {
-                providerId = station.provider_id;
+            if (station && station.provider) {
+                providerId = station.provider;
             }
         }
         
@@ -379,50 +397,37 @@ async function fetchStatus() {
         if (currentProvider) {
             apiUrl += `?provider=${encodeURIComponent(currentProvider)}`;
         }
-        
-        // 先尝试调用 API
-        let data;
-        try {
-            const response = await fetch(apiUrl);
-            if (response.status === 429) {
-                // 限流错误
-                showRateLimitAlert();
-                throw new Error('请求过于频繁，请稍后再试');
-            }
-            if (response.ok) {
-                data = await response.json();
-            } else {
-                throw new Error('API 调用失败');
-            }
-        } catch (error) {
-            // Fallback 到静态文件
-            console.log('API 调用失败，尝试加载缓存数据...', error);
-            const response = await fetch('/data/latest.json');
-            if (response.ok) {
-                data = await response.json();
-                // 如果选择了服务商，需要过滤数据
-                if (currentProvider && data.stations) {
-                    data.stations = data.stations.filter(s => s.provider_id === currentProvider);
-                }
-            } else {
-                throw new Error('无法加载数据');
-            }
+
+        const response = await fetch(apiUrl);
+        if (response.status === 429) {
+            // 限流错误
+            showRateLimitAlert();
+            throw new Error('请求过于频繁，请稍后再试');
         }
+        if (!response.ok) {
+            throw new Error('API 调用失败');
+        }
+        const data = await response.json();
         
-        // 加载所有站点定义（stations.json）
+        // 加载所有站点定义（通过 API）
         let allStationsDef = [];
         try {
-            const stationsResponse = await fetch('/data/stations.json');
+            const stationsResponse = await fetch('/api/stations');
+            if (stationsResponse.status === 429) {
+                showRateLimitAlert();
+            }
             if (stationsResponse.ok) {
                 const stationsData = await stationsResponse.json();
-                allStationsDef = stationsData.stations || [];
+                allStationsDef = (stationsData.stations || []).map(normalizeStation);
             }
         } catch (error) {
-            console.log('无法加载 stations.json，将只显示已抓取的站点', error);
+            console.log('无法加载 /api/stations，将只显示已抓取的站点', error);
         }
         
-        if (data && data.stations) {
-            if (data.stations.length === 0 && allStationsDef.length === 0) {
+        const fetchedStations = Array.isArray(data.stations) ? data.stations : [];
+        const normalizedStations = fetchedStations.map(normalizeStation);
+        if (data) {
+            if (normalizedStations.length === 0 && allStationsDef.length === 0) {
                 // 数据为空，显示提示
                 const listEl = document.getElementById('station-list');
                 listEl.innerHTML = `
@@ -435,16 +440,23 @@ async function fetchStatus() {
                 updateTime(data.updated_at || '未知');
             } else {
                 // 保存当前数据供校区切换使用
-                window.currentStations = data.stations;
+                window.currentStations = normalizedStations;
                 window.allStationsDef = allStationsDef;
                 
                 // 合并所有站点用于地图显示
-                const allStationsForMap = [...data.stations];
+                const allStationsForMap = [...normalizedStations];
                 if (allStationsDef && allStationsDef.length > 0) {
-                    const fetchedNames = new Set(data.stations.map(s => s.name));
+                    const fetchedIds = new Set(
+                        normalizedStations.map(s => (s.hash_id || s.id || s.name || '').toString())
+                    );
                     allStationsDef.forEach(def => {
                         const devdescript = def.devdescript || def.name;
-                        if (!fetchedNames.has(devdescript)) {
+                        const defDevids = (Array.isArray(def.devids) && def.devids.length > 0)
+                            ? def.devids
+                            : (def.devid ? [def.devid] : []);
+                        const defHashId = (def.hash_id || def.id || devdescript || '').toString();
+                        const defCampusId = def.campus_id;
+                        if (!fetchedIds.has(defHashId)) {
                             // 不再按服务商过滤地图显示（由图层控制器控制）
                             allStationsForMap.push({
                                 name: devdescript,
@@ -452,12 +464,12 @@ async function fetchStatus() {
                                 total: 0,
                                 used: 0,
                                 error: 0,
-                                devids: def.devid ? [def.devid] : [],
-                                provider_id: def.provider_id || 'unknown',
-                                provider_name: def.provider_name || '未知',
-                                campus: def.areaid,
+                                devids: defDevids,
+                                provider: def.provider || 'unknown',
+                                campus_id: defCampusId,
                                 lat: def.latitude,
                                 lon: def.longitude,
+                                hash_id: defHashId,
                                 isFetched: false
                             });
                         }
@@ -467,7 +479,7 @@ async function fetchStatus() {
                 // 刷新数据时，只更新标记和列表，不重置地图视图
                 // 传入 false 表示不允许自动调整地图视野，保持用户当前位置
                 renderMap(allStationsForMap, false);
-                renderList(data.stations, allStationsDef);
+                renderList(normalizedStations, allStationsDef);
                 updateTime(data.updated_at);
                 
                 // 标记首次加载完成
@@ -521,10 +533,11 @@ async function loadConfig() {
 function renderList(stations, allStationsDef = []) {
     const listEl = document.getElementById('station-list');
     
-    // 创建已抓取站点的映射（使用 name 作为键）
+    // 创建已抓取站点的映射（优先使用 hash_id 作为键）
     const fetchedStationsMap = new Map();
     stations.forEach(s => {
-        fetchedStationsMap.set(s.name, s);
+        const key = (s.hash_id || s.id || s.name || '').toString();
+        fetchedStationsMap.set(key, s);
     });
     
     // 合并所有站点：已抓取的和未抓取的
@@ -535,27 +548,32 @@ function renderList(stations, allStationsDef = []) {
         allStations.push({ ...s, isFetched: true });
     });
     
-    // 添加未抓取的站点（从 stations.json）
+    // 添加未抓取的站点（来自 /api/stations 的站点定义）
     if (allStationsDef && allStationsDef.length > 0) {
         allStationsDef.forEach(def => {
             const devdescript = def.devdescript || def.name;
+            const defDevids = (Array.isArray(def.devids) && def.devids.length > 0)
+                ? def.devids
+                : (def.devid ? [def.devid] : []);
+            const defCampusId = def.campus_id;
+            const defKey = (def.hash_id || def.id || devdescript || '').toString();
             // 如果这个站点没有被抓取到，添加为未抓取状态
-            if (!fetchedStationsMap.has(devdescript)) {
+            if (!fetchedStationsMap.has(defKey)) {
                 // 检查是否匹配当前过滤条件
-                const matchesProvider = !currentProvider || def.provider_id === currentProvider;
-                const matchesCampus = !currentCampus || (def.areaid && def.areaid.toString() === currentCampus);
+                const matchesProvider = !currentProvider || def.provider === currentProvider;
+                const matchesCampus = !currentCampus || (defCampusId && defCampusId.toString() === currentCampus);
                 
                 if (matchesProvider && matchesCampus) {
                     allStations.push({
+                        hash_id: defKey,
                         name: devdescript,
                         free: 0,
                         total: 0,
                         used: 0,
                         error: 0,
-                        devids: def.devid ? [def.devid] : [],
-                        provider_id: def.provider_id || 'unknown',
-                        provider_name: def.provider_name || '未知',
-                        campus: def.areaid,
+                        devids: defDevids,
+                        provider: def.provider || 'unknown',
+                        campus_id: defCampusId ? defCampusId.toString() : null,
                         lat: def.latitude,
                         lon: def.longitude,
                         isFetched: false
@@ -572,8 +590,8 @@ function renderList(stations, allStationsDef = []) {
     // 排序逻辑：关注列表优先，然后按可用数量排序
     const sortedStations = [...filteredStations].sort((a, b) => {
         // 检查是否已关注
-        const aWatched = isWatched(a.devids || [], a.name, a.provider_id);
-        const bWatched = isWatched(b.devids || [], b.name, b.provider_id);
+        const aWatched = isWatched(a.devids || [], a.name, a.provider);
+        const bWatched = isWatched(b.devids || [], b.name, b.provider);
         
         // 如果一个是关注的，另一个不是，关注的排在前面
         if (aWatched !== bWatched) {
@@ -596,7 +614,7 @@ function renderList(stations, allStationsDef = []) {
     }
     
     listEl.innerHTML = sortedStations.map(station => {
-        const { name, free, total, used, error, devids, provider_id, provider_name, campus, isFetched } = station;
+        const { name, free, total, used, error, devids, provider, campus_name, campus_id, isFetched } = station;
         
         // 计算使用率
         const usagePercent = total > 0 ? (used / total) * 100 : 0;
@@ -622,7 +640,7 @@ function renderList(stations, allStationsDef = []) {
         
         // 检查是否已关注
         const stationDevids = devids || [];
-        const watched = isWatched(stationDevids, name, provider_id);
+        const watched = isWatched(stationDevids, name, provider);
         
         // Heroicons 风格的星形图标（实心/空心）- 表示收藏/关注
         const starIcon = watched 
@@ -637,7 +655,9 @@ function renderList(stations, allStationsDef = []) {
         const devidsJson = JSON.stringify(stationDevids);
         
         // 获取校区名称
-        const campusName = campus && CAMPUS_CONFIG[campus] ? CAMPUS_CONFIG[campus].name : '未知校区';
+        const campusName = campus_id && CAMPUS_CONFIG[campus_id]
+            ? CAMPUS_CONFIG[campus_id].name
+            : '未知校区';
         
         // 服务商形状图标
         const providerShapesForBadge = {
@@ -645,15 +665,16 @@ function renderList(stations, allStationsDef = []) {
             // 'provider2': '▲',  // 三角形
             // 'provider3': '■',  // 正方形
         };
-        const shapeIcon = providerShapesForBadge[provider_id] || '●';
+        const shapeIcon = providerShapesForBadge[provider] || '●';
         
         // 站点名称截断（最多显示20个字符）
         const displayName = name.length > 20 ? name.substring(0, 20) + '...' : name;
         
         const titleText = isNotFetched ? '未抓取到数据' : name;
         
+        const hashIdAttr = station.hash_id || station.id || '';
         return `
-            <div class="p-4 border ${itemBorderClass} rounded-lg ${itemBgClass} transition-all duration-200 ${cursorClass} ${itemHoverBorderClass} ${itemHoverBgClass} ${grayscaleClass}" data-name="${name}" data-available="${!isNotFetched}" data-provider-id="${provider_id || ''}" title="${titleText}">
+            <div class="p-4 border ${itemBorderClass} rounded-lg ${itemBgClass} transition-all duration-200 ${cursorClass} ${itemHoverBorderClass} ${itemHoverBgClass} ${grayscaleClass}" data-name="${name}" data-hash-id="${hashIdAttr}" data-available="${!isNotFetched}" data-provider-id="${provider || ''}" title="${titleText}">
                 <!-- 站点名称和关注按钮 -->
                 <div class="flex justify-between items-start mb-3 gap-2">
                     <span class="font-semibold text-base ${isNotFetched ? 'text-gray-500 dark:text-gray-400' : 'text-gray-900 dark:text-gray-100'} truncate flex-1" title="${name}">${displayName}</span>
@@ -685,7 +706,7 @@ function renderList(stations, allStationsDef = []) {
                 <!-- 标签：校区和供应商 -->
                 <div class="flex flex-wrap gap-2">
                     <span class="px-2 py-1 rounded-md text-xs font-medium bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800">${campusName}</span>
-                    ${provider_name ? `<span class="px-2 py-1 rounded-md text-xs font-medium bg-slate-50 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 inline-flex items-center gap-1"><span class="text-[10px]">${shapeIcon}</span>${provider_name}</span>` : ''}
+                    ${provider ? `<span class="px-2 py-1 rounded-md text-xs font-medium bg-slate-50 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 inline-flex items-center gap-1"><span class="text-[10px]">${shapeIcon}</span>${provider}</span>` : ''}
                 </div>
             </div>
         `;
@@ -694,6 +715,7 @@ function renderList(stations, allStationsDef = []) {
     // 添加点击事件
     listEl.querySelectorAll('[data-name]').forEach(item => {
         const stationName = item.dataset.name;
+        const stationHashId = item.dataset.hashId;
         
         // 收藏图标点击事件（阻止冒泡，避免触发地图定位）
         const starIcon = item.querySelector('[data-devids]');
@@ -701,7 +723,7 @@ function renderList(stations, allStationsDef = []) {
             starIcon.addEventListener('click', async (e) => {
                 e.stopPropagation(); // 阻止事件冒泡
                 e.preventDefault(); // 防止默认行为
-                // 从 data 属性获取 devid 列表、devdescript 和 provider_id
+                // 从 data 属性获取 devid 列表、devdescript 和 provider
                 const devidsJson = starIcon.getAttribute('data-devids');
                 const devdescript = starIcon.getAttribute('data-devdescript');
                 
@@ -710,20 +732,29 @@ function renderList(stations, allStationsDef = []) {
                 
                 // 如果 data-provider-id 为空，尝试从当前站点数据中查找
                 if (!providerId && window.currentStations) {
-                    const station = window.currentStations.find(s => s.name === stationName);
-                    if (station && station.provider_id) {
-                        providerId = station.provider_id;
+                    const station = window.currentStations.find(s => {
+                        if (stationHashId) {
+                            return (s.hash_id || s.id || '').toString() === stationHashId;
+                        }
+                        return s.name === stationName;
+                    });
+                    if (station && station.provider) {
+                        providerId = station.provider;
                     }
                 }
-                
+
                 // 如果还是没有，尝试从 allStationsDef 中查找
                 if (!providerId && window.allStationsDef) {
                     const stationDef = window.allStationsDef.find(def => {
                         const defName = def.devdescript || def.name;
+                        const defHash = (def.hash_id || def.id || '').toString();
+                        if (stationHashId) {
+                            return defHash === stationHashId;
+                        }
                         return defName === stationName;
                     });
-                    if (stationDef && stationDef.provider_id) {
-                        providerId = stationDef.provider_id;
+                    if (stationDef && stationDef.provider) {
+                        providerId = stationDef.provider;
                     }
                 }
                 
@@ -775,4 +806,3 @@ function renderList(stations, allStationsDef = []) {
         });
     });
 }
-

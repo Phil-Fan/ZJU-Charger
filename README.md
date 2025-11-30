@@ -59,6 +59,15 @@ flowchart TD
 - [x] 接口限流功能，防止恶意调用
 - [ ] 钉钉机器人交互
 
+### 校区 ID（与 `fetcher/station.py` 保持一致）
+
+| 校区 ID | 名称       | 备注 |
+|---------|------------|------|
+| 1    | 玉泉校区   | 默认前端聚焦校区 |
+| 2    | 紫金港校区 | 地图/筛选使用 |
+
+新增校区时请同时更新 `fetcher/station.py` 的 `CAMPUS_NAME_MAP`、`web/js/config.js` 的 `CAMPUS_CONFIG` 以及 `web/index.html` 的校区按钮。
+
 网页效果：
 
 ![web](assets/web.png)
@@ -156,6 +165,7 @@ project/
 - 感谢 [cyc-987/Charge-in-ZJU: 浙大充电桩查询](https://github.com/cyc-987/Charge-in-ZJU) 的原作者 [@cyc-987](https://github.com/cyc-987)，为项目提供灵感；感谢 [紫金港充电桩地图 - CC98 论坛](https://www.cc98.org/topic/6348814) 中分享的 ZJG 充电地图；感谢 [浙江大学 E 校园电子地图平台](https://map.zju.edu.cn/index?locale=en_US) 中的部分充电桩点位信息。
 - 使用 [经纬度查询定位 ｜ 坐标拾取](https://www.mapchaxun.cn/Regeo) 调整抓取到的错误站点坐标。
 - 使用 [fastapi](https://fastapi.tiangolo.com/) 实现 API 服务；使用 [slowapi](https://github.com/sunhailin-dev/slowapi) 实现接口限流功能。
+- 使用 [supabase](https://supabase.com/) 实现数据库功能。
 - 使用 [Caddy](https://caddyserver.com/) 实现 HTTPS 证书与反向代理服务。
 
 ### 前端

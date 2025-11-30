@@ -52,7 +52,7 @@ web/
 
 ## 地图渲染流程（`map.js`）
 
-1. **初始化**：`initMap()` 根据当前校区（默认玉泉，取 `CAMPUS_CONFIG[2143]`）确定中心点，调用 `convertCoord()` 将 BD09 数据转到地图所需坐标，再创建 Leaflet 实例。
+1. **初始化**：`initMap()` 根据当前校区确定中心点（`CAMPUS_CONFIG` 在 `web/js/config.js` 中定义，默认聚焦 1=玉泉、2=紫金港，与 `fetcher/station.py` 的 `CAMPUS_NAME_MAP` 一致），调用 `convertCoord()` 将 BD09 数据转到地图所需坐标，再创建 Leaflet 实例。
 2. **底图与坐标系联动**：`MAP_LAYERS_CONFIG` 为 OSM/高德/腾讯预定义底图及其坐标系。`updateLayerControl()` 将这些底图，以及后续生成的“服务商图层组”一起放进 `L.control.layers`。当用户切换底图时触发 `baselayerchange`，同步更新 `MAP_CONFIG.useMap` 和 `MAP_CONFIG.webCoordSystem`，随后强制重新绘制所有桩位标记以保证坐标转换正确。
 3. **标记绘制**：`renderMap()` 先将所有旧的服务商图层移除，再把站点按 `provider` 分组。每个分组对应一个 `L.layerGroup`，并使用 `L.divIcon` 自定义图标颜色/形状：默认绿色表示有空闲，橙色/红色分别表示紧张和无空闲，灰色则表示 `isFetched=false` 的“未抓取”桩位。`providerShapes` 允许为不同服务商定义圆/三角/方形等差异化外观。
 4. **交互能力**：
