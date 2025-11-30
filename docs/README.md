@@ -9,6 +9,7 @@
 - [钉钉机器人文档](./05-dingbot.md)
 - [Script 快捷指令文档](./06-script-shortcuts.md)
 - [Supabase 数据库架构](./07-supabase-schema.md)
+- [API 参考](./08-api.md)
 
 ## 📝 文档更新
 
@@ -16,10 +17,8 @@
 
 如果发现文档有误或需要补充，欢迎提交 Issue 或 Pull Request！
 
----
-
 ## 🔗 相关链接
 
 - [项目主 README](../README.md)
-- [GitHub 仓库](https://github.com/your-username/Charge-in-ZJU)
-- [问题反馈](https://github.com/your-username/Charge-in-ZJU/issues)
+- [GitHub 仓库](https://github.com/Phil-Fan/ZJU-Charger)
+- [问题反馈](https://github.com/Phil-Fan/ZJU-Charger/issues)
