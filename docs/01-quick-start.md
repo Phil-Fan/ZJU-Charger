@@ -6,23 +6,40 @@
 
 ### 访问方式
 
-1. **在线访问**：访问部署好的 Web 页面（如 `https://charger.philfan.cn/web/`）
-2. **本地访问**：启动服务器后访问 `http://localhost:8000/web/`
+1. **在线访问**：部署后的 React SPA（如 `https://charger.philfan.cn/web/`）。
+2. **本地开发**：在 `web/` 目录运行构建工具，即可通过 `http://localhost:5173` 预览前端；后端只需暴露 `/api/*` 接口（可运行 FastAPI 或任意兼容 API 服务）。
+
+### 本地开发步骤
+
+```bash
+cd web
+npm install
+cp .env.example .env   # 写入 VITE_AMAP_KEY（高德地图 JS SDK Key）
+npm run dev            # 启动 Vite 开发服务器
+```
+
+构建部署版本：
+
+```bash
+npm run build          # 输出 dist/
+npm run preview        # 本地预览 dist/ 内容
+```
+
+构建后将 `dist/` 部署到任意静态托管（Pages、Cloudflare、Caddy 等），FastAPI 或其他 API 服务仅负责 `/api/*`。保持 `.env` 内的 `VITE_AMAP_KEY` 与可选 `VITE_API_BASE`，确保前端能访问正确的高德与 API。
 
 ### 主要功能
 
-- **地图可视化**：在地图上查看所有充电桩的位置和状态
-- **站点列表**：查看所有站点的详细信息（名称、位置、可用数量等）
-- **服务商筛选**：通过下拉框筛选特定服务商的站点
-- **校区筛选**：筛选特定校区的站点（玉泉、紫金港等）
-- **关注列表**：点击站点列表中的心形图标，添加/移除关注站点
-- **自动刷新**：页面会自动刷新站点状态（默认 60 秒）
+- **React 组件化界面**：Header、筛选器、站点列表和地图均为独立组件，逻辑更清晰。
+- **AMap + Apache ECharts**：使用 `echarts-extension-amap` 渲染单一高德底图，不再需要在 OSM/腾讯之间手动切换。
+- **站点列表与关注**：支持校区、服务商筛选，关注（收藏）状态与主题偏好存储在 `localStorage`，多标签页自动同步。
+- **自动刷新**：按照 `/api/config` 返回的 `fetch_interval` 周期刷新（默认 60 秒）。
+- **夜间提醒与摘要**：00:10–05:50 自动显示夜间提示，并在界面顶部展示各校区空闲数摘要。
 
 ### 使用技巧
 
-- 点击地图上的标记点可以查看站点详情
-- 使用右上角的地图切换按钮可以切换不同的地图源（高德地图、OpenStreetMap 等）
-- 关注列表数据存储在浏览器 localStorage 中，清除浏览器数据会导致列表丢失
+- 点击地图标记可查看站点详情；右下角按钮可定位当前位置或导出 PNG 截图。
+- 关注列表存储在浏览器 `localStorage` 中，清除数据会导致关注记录丢失。
+- 若未设置 `VITE_AMAP_KEY`，地图区域会提示错误，请到高德开放平台申请 Web JS Key。
 
 ## iOS 快捷指令
 

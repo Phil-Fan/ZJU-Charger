@@ -1,11 +1,10 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="zh-CN">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ZJU 充电桩状态</title>
-    <!-- Google tag (gtag.js) -->
-    <!-- 下边一段代码是我自己的 Google 代码，如果你需要自己部署，请将 id 替换为你的 Google 代码 ！！！-->
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.ico" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>ZJU Charger</title>
     <script async src="https://www.googletagmanager.com/gtag/js?id=G-YKMTD8L9D7"></script>
     <script>
       window.dataLayer = window.dataLayer || [];
@@ -13,170 +12,9 @@
       gtag('js', new Date());
       gtag('config', 'G-YKMTD8L9D7');
     </script>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <script>
-        tailwind.config = {
-            darkMode: 'class',
-        }
-    </script>
-    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-    <style>
-        /* Leaflet地图暗色模式样式 */
-        .dark .leaflet-container {
-            background-color: #1f2937;
-        }
-        .dark .leaflet-popup-content-wrapper {
-            background-color: #374151;
-            color: #f3f4f6;
-        }
-        .dark .leaflet-popup-tip {
-            background-color: #374151;
-        }
-        /* Give me a star 动画样式 */
-        @keyframes bounce-arrow {
-            0%, 100% {
-                transform: translateX(0);
-            }
-            50% {
-                transform: translateX(5px);
-            }
-        }
-        .star-hint {
-            position: relative;
-            display: inline-flex;
-            align-items: center;
-        }
-        .star-arrow {
-            animation: bounce-arrow 1.5s ease-in-out infinite;
-            margin-left: 4px;
-            color: #fbbf24;
-        }
-        .star-text {
-            font-size: 0.75rem;
-            color: #fbbf24;
-            font-weight: 500;
-            margin-left: 4px;
-        }
-        .dark .star-text {
-            color: #fcd34d;
-        }
-    </style>
-</head>
-<body class="bg-gray-50 dark:bg-gray-900 min-h-screen transition-colors duration-200">
-    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-6 flex flex-col gap-4 sm:gap-6 min-h-screen lg:h-screen lg:max-h-screen lg:overflow-hidden">
-        <!-- 上：Header -->
-        <header class="bg-white dark:bg-gray-800 rounded-lg shadow-md p-4 sm:p-6 transition-colors duration-200 flex-shrink-0">
-            <div class="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
-                <div class="flex items-end gap-3">
-                    <h1 class="text-xl sm:text-2xl font-bold text-blue-600 dark:text-blue-400">ZJU Charger</h1>
-                    <span class="text-xs sm:text-sm text-gray-500 dark:text-gray-400">by PhilFan</span>
-                </div>
-                <div class="flex flex-wrap items-center gap-3 lg:gap-4">
-                    <div class="flex gap-2 flex-wrap">
-                        <!-- 校区 ID 对应 fetcher/station.py 的 CAMPUS_NAME_MAP -->
-                        <button id="campus-all" class="px-3 lg:px-4 py-2 rounded-md text-xs lg:text-sm font-medium transition-all duration-200 bg-blue-600 dark:bg-blue-500 text-white border border-blue-600 dark:border-blue-500 hover:bg-blue-700 dark:hover:bg-blue-600" data-campus="">全部</button>
-                        <button id="campus-yuquan" class="px-3 lg:px-4 py-2 rounded-md text-xs lg:text-sm font-medium transition-all duration-200 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 border border-gray-300 dark:border-gray-600 hover:bg-blue-50 dark:hover:bg-blue-900/30 hover:border-blue-600 dark:hover:border-blue-500 hover:text-blue-600 dark:hover:text-blue-400" data-campus="1">玉泉校区</button>
-                        <button id="campus-zjg" class="px-3 lg:px-4 py-2 rounded-md text-xs lg:text-sm font-medium transition-all duration-200 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 border border-gray-300 dark:border-gray-600 hover:bg-blue-50 dark:hover:bg-blue-900/30 hover:border-blue-600 dark:hover:border-blue-500 hover:text-blue-600 dark:hover:text-blue-400" data-campus="2">紫金港校区</button>
-                        <button id="campus-hj" class="px-3 lg:px-4 py-2 rounded-md text-xs lg:text-sm font-medium transition-all duration-200 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 border border-gray-300 dark:border-gray-600 hover:bg-blue-50 dark:hover:bg-blue-900/30 hover:border-blue-600 dark:hover:border-blue-500 hover:text-blue-600 dark:hover:text-blue-400" data-campus="3">华家池校区</button>
-                    </div>
-                    <span id="update-time" class="text-xs lg:text-sm text-gray-600 dark:text-gray-400 whitespace-nowrap hidden sm:inline">加载中...</span>
-                    <button id="refresh-btn" class="px-3 lg:px-4 py-2 bg-blue-600 dark:bg-blue-500 text-white rounded-md text-xs lg:text-sm font-medium hover:bg-blue-700 dark:hover:bg-blue-600 active:bg-blue-800 dark:active:bg-blue-700 transition-colors duration-200 shadow-sm">刷新</button>
-                    <button id="theme-toggle" type="button" class="p-2 rounded-md text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400" title="切换暗色模式">
-                        <svg id="theme-icon-sun" class="w-5 h-5 hidden dark:block pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z"></path>
-                        </svg>
-                        <svg id="theme-icon-moon" class="w-5 h-5 block dark:hidden pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"></path>
-                        </svg>
-                    </button>
-                </div>
-            </div>
-        </header>
-        
-        <!-- 中：地图和站点列表 -->
-        <div class="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6 flex-1 lg:overflow-hidden">
-            <div class="lg:col-span-2 bg-white dark:bg-gray-800 rounded-lg shadow-md overflow-hidden flex flex-col transition-colors duration-200 flex-1 min-h-[50vh] lg:min-h-0">
-                <div id="map" class="w-full flex-1 min-h-[50vh] lg:min-h-0"></div>
-                <div class="p-3 border-t border-gray-200 dark:border-gray-700 flex flex-col sm:flex-row items-center justify-center sm:justify-between gap-3 sm:gap-4 flex-shrink-0 transition-colors duration-200">
-                    <div class="flex items-center gap-2 flex-1 sm:flex-none">
-                        <button id="location-btn" class="flex items-center justify-center gap-2 px-4 py-2.5 rounded-md text-sm font-medium border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-200 hover:border-blue-600 dark:hover:border-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/30 hover:text-blue-600 dark:hover:text-blue-400 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 focus:border-blue-600 dark:focus:border-blue-500 transition-colors duration-200" title="定位到当前位置">
-                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                                <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path>
-                                <circle cx="12" cy="10" r="3"></circle>
-                            </svg>
-                        </button>
-                        <button id="download-map-btn" class="flex items-center justify-center gap-2 px-4 py-2.5 rounded-md text-sm font-medium border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-200 hover:border-blue-600 dark:hover:border-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/30 hover:text-blue-600 dark:hover:text-blue-400 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 focus:border-blue-600 dark:focus:border-blue-500 transition-colors duration-200" title="下载地图">
-                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
-                                <polyline points="7 10 12 15 17 10"></polyline>
-                                <line x1="12" y1="15" x2="12" y2="3"></line>
-                            </svg>
-                        </button>
-                    </div>
-                    <!-- 地图服务选择器已移除，现在使用图层控制器切换 -->
-                </div>
-            </div>
-            
-            <div class="bg-white dark:bg-gray-800 rounded-lg shadow-md overflow-hidden flex flex-col transition-colors duration-200 flex-1 min-h-[40vh] lg:min-h-0">
-                <div class="p-4 lg:p-6 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between flex-shrink-0 transition-colors duration-200">
-                    <h2 class="text-base sm:text-lg font-semibold text-gray-800 dark:text-gray-200">站点列表</h2>
-                    <div class="flex items-center gap-2">
-                        <label class="text-xs lg:text-sm text-gray-600 dark:text-gray-400 whitespace-nowrap hidden sm:inline">服务商：</label>
-                        <select id="provider-selector" class="px-3 py-1.5 rounded-md text-xs lg:text-sm font-medium border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-200 hover:border-blue-600 dark:hover:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 focus:border-blue-600 dark:focus:border-blue-500 transition-colors duration-200 shadow-sm min-w-[100px]">
-                            <option value="">全部</option>
-                        </select>
-                    </div>
-                </div>
-                <div id="night-message" class="hidden px-4 lg:px-6 pt-4 pb-2 flex-shrink-0 transition-colors duration-200">
-                    <div class="w-full bg-blue-50 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-800 rounded-lg p-3 text-center">
-                        <p class="text-sm text-blue-800 dark:text-blue-200">夜深了，充电服务暂停，请注意好好休息！🌙</p>
-                    </div>
-                </div>
-                <div class="flex-1 overflow-y-auto p-4 lg:p-6 min-h-0">
-                    <div id="loading" class="text-center py-8 text-gray-500 dark:text-gray-400">加载中...</div>
-                    <div id="station-list" class="flex flex-col gap-3"></div>
-                </div>
-            </div>
-        </div>
-        
-        <!-- 下：Footer -->
-        <footer class="bg-white dark:bg-gray-800 rounded-lg shadow-md p-4 sm:p-6 text-center transition-colors duration-200 flex-shrink-0">
-            <div class="flex flex-col sm:flex-row items-center justify-center gap-3 sm:gap-4 lg:gap-6">
-                <div class="flex items-center gap-2">
-                    <div class="star-hint">
-                        <span class="star-text">⭐ Give me a star</span>
-                        <svg class="star-arrow w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7l5 5m0 0l-5 5m5-5H6"></path>
-                        </svg>
-                    </div>
-                    <a href="https://github.com/Phil-Fan/ZJU-Charger" target="_blank" rel="noopener noreferrer" class="flex items-center gap-2 text-gray-700 dark:text-gray-300 hover:text-blue-600 dark:hover:text-blue-400 transition-colors duration-200">
-                        <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
-                            <path fill-rule="evenodd" d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.531 1.032 1.531 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0112 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0022 12.017C22 6.484 17.522 2 12 2z" clip-rule="evenodd"></path>
-                        </svg>
-                        <span class="text-xs sm:text-sm font-medium">GitHub</span>
-                    </a>
-                </div>
-                <a href="mailto:hw.phil.fan@gmail.com" class="flex items-center gap-2 text-gray-700 dark:text-gray-300 hover:text-blue-600 dark:hover:text-blue-400 transition-colors duration-200">
-                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"></path>
-                    </svg>
-                    <span class="text-xs sm:text-sm font-medium">Email</span>
-                </a>
-                <span class="text-xs text-gray-500 dark:text-gray-400">本项目使用 <a href="https://www.gnu.org/licenses/gpl-3.0.html" target="_blank" rel="noopener noreferrer" class="text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-500 underline">GPLv3</a> 协议开源</span>
-            </div>
-        </footer>
-    </div>
-    
-    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-    <!-- <script src="https://cdnjs.cloudflare.com/ajax/libs/proj4js/2.19.10/proj4.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/proj4leaflet/1.0.2/proj4leaflet.min.js"></script> -->
-    <script src="js/leaflet.ChineseTmsProviders.js"></script>
-    <script src="https://unpkg.com/leaflet-easyprint@2.1.9/dist/bundle.js"></script>
-    <script src="js/leaflet-coord-transform.js"></script>
-    <!-- 模块化脚本，按依赖顺序加载 -->
-    <script src="js/config.js"></script>
-    <script src="js/map.js"></script>
-    <script src="js/data.js"></script>
-    <script src="js/ui.js"></script>
-</body>
+  </head>
+  <body class="bg-gray-50 dark:bg-gray-900">
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
 </html>

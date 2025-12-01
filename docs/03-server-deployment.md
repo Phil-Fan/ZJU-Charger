@@ -205,12 +205,6 @@ Docker 镜像已经内置在项目根目录下的 `Dockerfile` 中，适合希�
    :80 {
        encode gzip zstd
 
-       @web path /web/*
-       handle @web {
-           root * /path/to/Charge-in-ZJU/web
-           try_files {path} /index.html
-           file_server
-       }
 
        handle {
            reverse_proxy 127.0.0.1:8000
@@ -266,17 +260,7 @@ Docker 镜像已经内置在项目根目录下的 `Dockerfile` 中，适合希�
            proxy_set_header X-Forwarded-Proto $scheme;
        }
 
-       # Web 前端
-       location /web/ {
-           proxy_pass http://127.0.0.1:8000;
-           proxy_set_header Host $host;
-           proxy_set_header X-Real-IP $remote_addr;
-       }
-
-       # 静态文件（可选）
-       location /data/ {
-           proxy_pass http://127.0.0.1:8000;
-       }
+       # Web 前端请通过 CDN/Pages 等静态托管
    }
    ```
 

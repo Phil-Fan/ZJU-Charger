@@ -1,96 +1,92 @@
 # Web 前端实现
 
-本文档聚焦 Web 前端的代码组织与运行机制，帮助你快速理解如何在不依赖框架的情况下构建地图页面、消费后端 API，并提供流畅的交互体验。
+本文档聚焦 React 版本 Web 前端的代码组织与运行机制，帮助你快速理解如何使用 Vite/ECharts 构建地图页面、消费后端 API，并提供流畅的交互体验。
 
 ## 技术栈概览
 
-- **基础**：原生 HTML + ES6 模块化脚本，TailwindCSS CDN 负责样式；无需打包工具即可直接部署。
-- **地图**：Leaflet 1.9.4，配合 `leaflet.ChineseTmsProviders` 切换国内常用底图，`leaflet-easyprint` 输出地图截图。
-- **坐标系**：`leaflet-coord-transform.js` 内置 BD09/GCJ02/WGS84 之间的互转工具，确保数据与底图一致。
-- **数据交互**：浏览器通过 `fetch` 调用 `/api/status`、`/api/providers`、`/api/config`，并使用 `/api/stations` 补全地图/站点定义信息。
-- **状态与存储**：`localStorage` 记录关注列表与主题偏好，`Set` 结构在前端完成去重和快速查询。
+- **基础**：React 18 + TypeScript + Vite 构建 SPA，Tailwind CSS 负责样式。
+- **地图**：Apache ECharts 5 + `echarts-extension-amap`，统一使用高德地图底图，具备 geolocation 与截图能力。
+- **状态管理**：React Hooks + 定制 `useStations/useWatchlist` 等 hooks，将数据获取、轮询、主题、关注列表等逻辑拆分成可复用模块。
+- **数据交互**：仍通过 `/api/status`、`/api/providers`、`/api/config`、`/api/stations` 获取实时/元数据，服务端实现保持不变。
+- **部署模式**：前端使用静态托管（Pages/Caddy 等），FastAPI 仅提供 API；通过 `VITE_API_BASE` 指定 API 根地址即可支持跨域请求。
+- **存储**：`localStorage` 保留主题和关注列表；`VITE_AMAP_KEY` 在 `.env` 中配置后由 Vite 注入。
 
 ## 目录与模块职责
 
 ```text
 web/
-├── index.html               # 页面骨架、Tailwind/Leaflet/CDN 注入及脚本加载顺序
-├── js/
-│   ├── config.js            # 常量、校区/地图配置、localStorage key
-│   ├── map.js               # Leaflet 初始化、坐标转换、图层与标记渲染
-│   ├── data.js              # 数据获取、合并、过滤、watchlist 管理
-│   ├── ui.js                # 主题/夜间提示/交互入口，绑定事件与定时刷新
-│   ├── leaflet-coord-transform.js
-│   └── leaflet.ChineseTmsProviders.js
-├── data/                    # 启动或迁移时的原始站点缓存（由服务器同步至数据库）
-└── 40x/50x.html             # 兜底静态页面
+├── index.html               # Vite 入口，注入 gtag、#root 容器
+├── package.json             # npm scripts（dev/build/preview/lint）
+├── tailwind.config.cjs      # Tailwind 扫描范围 & dark mode
+├── postcss.config.cjs
+├── tsconfig*.json           # TypeScript & path alias 配置（@ -> src）
+└── src/
+    ├── main.tsx            # React 入口
+    ├── App.tsx             # 页面骨架，组织 Header/Map/List/Footer
+    ├── components/         # HeaderBar、MapView、StationList、SummaryGrid 等 UI 组件
+    ├── hooks/              # useStations/useProviders/useTheme/useWatchlist 等状态逻辑
+    ├── services/api.ts     # fetch helpers、数据归一化与合并
+    ├── config/             # 校区/常量/Storage key
+    ├── lib/                # 坐标转换、时间格式化、AMap loader
+    └── types/              # API/站点类型声明
 ```
 
-加载顺序在 `index.html` 最后：`config` → `map` → `data` → `ui`。这样 `map.js` 能依赖配置常量，`data.js` 在渲染时调用 `renderMap`，而最终的事件绑定与刷新循环在 `ui.js` 完成。
+Vite 会读取 `index.html` 并自动注入 `src/main.tsx`，因此部署时只需要 `npm run build` 生成的 `dist/` 静态文件即可。
 
 ## 数据流与 API
 
-1. **配置拉取**：`loadConfig()` 调用 `/api/config`，读取 `fetch_interval`，用于后续的自动刷新周期；失败时采用默认 60 秒。
-2. **服务商清单**：`loadProviders()` 访问 `/api/providers`，更新右上角下拉框，顺便缓存 `availableProviders` 供图层命名。
-3. **站点状态**：`fetchStatus()` 直接调用 `/api/status`（可追加 `?provider=`）。后台服务会从 Supabase `latest` 表读取缓存（`latest` 与 `usage` 表字段一致，API 层负责组装 JSON）；前端无需感知具体存储位置。同时请求 `/api/stations`，将尚未抓取到实时数据的桩位补齐并打上 `isFetched: false` 标记。
-4. **关注列表状态**：`fetchWatchlistStatus()` 读取本地 watchlist，按服务商拼接 `/api/status?provider=x&devid=...` 批量查询，必要时再全量拉取 `/api/status` 过滤出基于名称的收藏。
-5. **限流提示**：任意接口返回 429 时触发 `showRateLimitAlert()`，以浮层提醒用户不要频繁刷新。
+1. **配置拉取**：`useConfig()` 在挂载后调用 `/api/config`，将 `fetch_interval`（秒）写入状态并驱动 `useAutoRefresh()`，失败时自动回退到 60 秒。
+2. **服务商清单**：`useProviders()` 请求 `/api/providers`，结果传入 Header 组件以渲染筛选下拉框。
+3. **站点状态**：`useStations()` 并行请求 `/api/status`（支持 `?provider=` 筛选）与 `/api/stations`，通过 `mergeStations()` 合并实时数据与元数据，保证未抓取站点也能显示在地图/列表，并标记 `isFetched=false`。
+4. **关注列表**：`useWatchlist()` 负责从 `localStorage` 解析/持久化 `{devids, devdescripts}`，并暴露 `isWatched()` 与 `toggleWatch()` 给列表组件使用。
+5. **限流提示**：当 API 返回 429 时抛出 `RateLimitError`，`useStations()` 捕获后设置 `rateLimited=true`，由 `RateLimitToast` 组件展示提示。
 
 ## 全局状态与本地存储
 
-`data.js` 维护若干顶级变量：
+- React 组件树以 `App` 为根，通过 `useState` 持有 `campusId`、`providerId` 等筛选条件。
+- `useStations()`（数据）、`useProviders()`（选项）、`useConfig()`（刷新频率）等 hooks 将 API 结果注入组件。
+- `useWatchlist()`+`localStorage` 保存 `{devids, devdescripts, updated_at}`，支持多标签同步；`useTheme()` 负责 `THEME_STORAGE_KEY`。
 
-- `currentCampus`、`currentProvider` 控制地图与列表过滤。
-- `availableProviders` 驱动图层命名以及下拉选项。
-- `watchlistDevids` 与 `watchlistDevdescripts` 两个 `Set`，分别存储 (devid+provider) 与 devdescript，用于收藏判定与快速排序。
-- `fetchInterval`：来自配置接口，供 `setInterval` 使用。
+## 地图渲染流程（`MapView`）
 
-观测点：
-
-- `WATCHLIST_STORAGE_KEY = 'zju_charger_watchlist'` 保存 `{devids, devdescripts, updated_at}`，在页面初始化和刷新定时器里都会重新读取，确保多标签页同步。
-- `THEME_STORAGE_KEY = 'zju_charger_theme'` 由 `ui.js` 控制，切换暗色模式后立即写入。
-
-## 地图渲染流程（`map.js`）
-
-1. **初始化**：`initMap()` 根据当前校区确定中心点（`CAMPUS_CONFIG` 在 `web/js/config.js` 中定义，默认聚焦 1=玉泉、2=紫金港，与 `fetcher/station.py` 的 `CAMPUS_NAME_MAP` 一致），调用 `convertCoord()` 将 BD09 数据转到地图所需坐标，再创建 Leaflet 实例。
-2. **底图与坐标系联动**：`MAP_LAYERS_CONFIG` 为 OSM/高德/腾讯预定义底图及其坐标系。`updateLayerControl()` 将这些底图，以及后续生成的“服务商图层组”一起放进 `L.control.layers`。当用户切换底图时触发 `baselayerchange`，同步更新 `MAP_CONFIG.useMap` 和 `MAP_CONFIG.webCoordSystem`，随后强制重新绘制所有桩位标记以保证坐标转换正确。
-3. **标记绘制**：`renderMap()` 先将所有旧的服务商图层移除，再把站点按 `provider` 分组。每个分组对应一个 `L.layerGroup`，并使用 `L.divIcon` 自定义图标颜色/形状：默认绿色表示有空闲，橙色/红色分别表示紧张和无空闲，灰色则表示 `isFetched=false` 的“未抓取”桩位。`providerShapes` 允许为不同服务商定义圆/三角/方形等差异化外观。
+1. **AMap 加载**：组件初始化时调用 `loadAmap(VITE_AMAP_KEY)` 动态注入高德 JS SDK，随后 `echarts.init()` 创建实例。
+2. **ECharts 配置**：`amap` 选项指定视图模式、中心、缩放与暗色样式；`series` 使用 `scatter` + `coordinateSystem: 'amap'` 渲染标记，颜色按照站点可用性（绿=空闲、橙=紧张、红=故障）。
+3. **坐标转换**：`normalizeStation()` 将 BD09 坐标转换为 GCJ02，确保与高德底图一致；缺失坐标的站点会被过滤，不影响列表展示。
 4. **交互能力**：
-   - `layerControl` 允许快速显示/隐藏某个服务商的桩。
-   - `manualPrint()` 基于 `L.easyPrint` 导出当前视口，结合 `#download-map-btn` 提供“下载地图”功能。
-   - `showCurrentLocation()` 在 HTTPS/localhost 环境下请求浏览器定位，使用 WGS84→GCJ02/BD09 转换后在地图上加蓝色圆点。
-   - 校区切换或首次加载时可触发 `map.fitBounds(...)` 自动调整视野；定时刷新则保持用户当前视角。
+   - Tooltip 展示站点名称、校区、服务商、实时数量，并附带“高德/系统地图”导航链接。
+   - 双击任意站点标记会弹出导航卡片，可一键打开高德或系统地图；右下角按钮仍提供“定位”（浏览器 geolocation → GCJ02 → `setCenter`）。
+   - 校区切换会更新 AMap `center/zoom`，地图与列表保持同步。
 
-## 列表与 UI（`data.js` + `ui.js`）
+## 列表与 UI（React 组件）
 
-- **渲染逻辑**：`renderList()` 将实时数据与 `/api/stations` 提供的定义做并集后，再按校区、服务商过滤。排序优先级是“是否关注 → 是否实时数据 → 可用数”。每一项都包含彩色进度条（绿色=空闲、灰色=占用、红色=故障），并展示校区/服务商徽章。
-- **收藏**：点击星形图标会调用 `toggleWatchlist()`。函数优先使用 devid+provider 组合保证唯一性，如果接口数据缺失则退化为站点名称。
-- **夜间提示**：`isNightTime()` 判断 00:10–05:50 区间，`updateNightMessage()` 控制提示条显隐。
-- **主题切换**：`initTheme()` 在加载时读取本地主题，`toggleTheme()` 切换 `document.documentElement` 的 `dark` class，SVG 图标跟随变化。
-- **校区与服务商筛选**：`setupCampusSelector()`、`setupProviderSelector()` 对按钮和下拉框绑定事件。校区切换会允许地图自动缩放；服务商筛选尝试重新获取数据（确保能请求到仅包含指定 provider 的列表）。
-- **时间戳**：`updateTime()` 将接口返回的 `updated_at` 格式化为“YYYY/MM/DD HH:MM:SS”，绑定在 Header 中。
+- **StationList**：从 `useStations()` 返回的 `campusStations` 中渲染卡片，排序策略保持“关注优先 → 实时数据 → 空闲数量”。进度条、校区/服务商标签和“未抓取”提示与旧版一致。
+- **Watchlist**：`useWatchlist()` 注入 `isWatched/toggleWatch`，按钮样式改为星形字符（★）并实时同步 `localStorage`。
+- **NightNotice**：独立组件，通过 `isNightTime()` 决定是否展示夜间提示，不再依赖 DOM 操作。
+- **HeaderBar**：封装校区按钮、服务商下拉、更新时间、手动刷新与主题切换按钮。
+- **SummaryGrid**：新增校区摘要组件，显示每个校区的空闲数量与站点总数。
 
 ## 自动刷新与提示机制
 
-- `ui.js` 的 `DOMContentLoaded` 回调完成所有初始化后，会：
-  1. `await loadConfig()` / `loadProviders()` / `fetchStatus()`。
-  2. `setInterval` 以 `fetchInterval` 调用 `fetchStatus()`，并同步刷新 watchlist 以捕获其它标签页的变化。
-  3. 另外一个 `setInterval` 每分钟刷新夜间提示状态。
-- 每次手动点击“刷新”按钮会立即执行 `fetchStatus()`。
-- 429 或网络异常会在列表区域显示错误卡片，并提示排障步骤。
+- `useConfig()` 读取 `fetch_interval`，`useAutoRefresh()` 依据该值调用 `useStations().refresh()`。
+- Header 中的“刷新”按钮直接触发 `refresh()`，并在 UI 上立刻进入 loading 状态。
+- `RateLimitToast` 根据 `rateLimited` 状态展示限流提示；其余错误在列表卡片中提示排查步骤。
 
 ## 位置识别与校区自动切换
 
-- `detectNearestCampus()` 在 HTTPS 或 localhost 场景下尝试读取浏览器地理位置，与 `CAMPUS_CONFIG` 中的坐标逐一计算距离（Haversine）。
-- 找到最近校区后：
-  1. 若与当前校区不同则调用 `switchToCampus()`，从而触发地图的 `fitBounds` 和列表重渲染；
-  2. `showLocationNotification()` 弹出右上角提醒，包含校区名与距离，5 秒后自动消失。
+- `MapView` 的“定位”按钮调用 `navigator.geolocation`，并通过 `wgs84ToGcj02()` 校正后设置高德地图中心；定位标记会在 10 秒后自动移除。
+- 校区切换由 React 状态驱动，`MapView` 和 `StationList` 同时响应，无需手动触发 `fitBounds`。
 
 ## 扩展指引
 
-- **新增校区**：在 `CAMPUS_CONFIG` 中添加 `{id: {name, center}}` 即可，记得在 `index.html` 的按钮区添加对应 DOM。
-- **接入新的地图底图**：向 `MAP_LAYERS_CONFIG` 增加条目，并提供 `coordSystem` 与 `layers` 映射；`baselayerchange` 会自动同步坐标系。
-- **自定义服务商样式**：扩展 `providerShapes` 和 `providerShapesForBadge`，或在 `createMarkerIcon()` 内添加更多样式分支。
-- **更复杂的排序/标签**：`renderList()` 已集中所有列表项模板，可在该函数里增加额外信息（如电压、运营时间）或替换排序规则。
+- **新增校区**：在 `src/config/campuses.ts` 中追加配置，并更新 `CAMPUS_LIST`；按钮会自动从配置渲染。
+- **调整地图样式**：`MapView` 中的 `getStationColor()`、`symbolSize` 决定标记风格，可根据数据类型扩展多个 series。
+- **附加筛选项**：在 `HeaderBar` 添加新的控件，并将状态下传给 `useStations()` 的参数即可。
+- **排序/标签**：修改 `StationList` 内的排序函数或卡片标签；React 组件结构使其更易维护。
 
-通过以上模块化拆分，前端保持“直接丢到任意静态托管即可运行”的简单部署体验，同时仍具备可维护的结构与充分的扩展空间。
+React + Vite 仍然输出纯静态文件，部署方式与旧版一致，但模块拆分让新需求可以在各自文件中实现，避免脚本互相耦合。
+
+## 部署提示
+
+- 构建前在 `.env` 中配置 `VITE_AMAP_KEY`（高德 Web JS Key），否则地图无法初始化。
+- 若前端与 FastAPI 不同源，设置 `VITE_API_BASE=https://your-api-domain`，前端会以该地址作为 `/api/*` 请求前缀；FastAPI 只需处理 REST API，不再托管静态页面。
+- `npm run dev` 用于本地调试；`npm run build && npm run preview` 可验证构建输出，随后将 `dist/` 上传到任意静态托管（Pages、OSS、Caddy 等）。

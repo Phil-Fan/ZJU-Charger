@@ -2,8 +2,6 @@
 
 from fastapi import FastAPI, HTTPException, Request, Query
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.staticfiles import StaticFiles
-from fastapi.responses import RedirectResponse
 from datetime import datetime, timezone, timedelta
 from typing import List, Optional, Dict, Any
 import json
@@ -241,22 +239,7 @@ logger.info("CORS 中间件已配置")
 app.include_router(ding_router)
 logger.info("钉钉路由已注册")
 
-# 静态文件服务（前端页面）- 必须在 API 路由之后
-web_dir = Path(__file__).parent.parent / "web"
-if web_dir.exists():
-    app.mount("/web", StaticFiles(directory=str(web_dir), html=True), name="web")
-    logger.info(f"静态文件服务已挂载: /web -> {web_dir}")
-else:
-    logger.warning(f"web 目录不存在: {web_dir}")
-
-# 数据文件服务（GitHub Pages 使用）
-data_dir = Path(__file__).parent.parent / "data"
-if data_dir.exists():
-    app.mount("/data", StaticFiles(directory=str(data_dir)), name="data")
-    logger.info(f"数据文件服务已挂载: /data -> {data_dir}")
-else:
-    logger.warning(f"data 目录不存在: {data_dir}")
-
+logger.info("FastAPI 仅提供 API 路由；静态前端由独立托管服务提供")
 
 def _get_timestamp():
     """获取当前时间戳（UTC+8）"""

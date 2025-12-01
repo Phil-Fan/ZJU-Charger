@@ -17,23 +17,13 @@ ZJU Charger 基于 FastAPI 开发，瞄准**校内充电桩不好找、供应商
 
 ## 功能特性
 
-### 前端功能
+-### 前端功能
 
-- [x] 网页地图可视化（Leaflet），站点列表按照可用数量进行排序
-- [x] 按照可用数量进行颜色区分，绿色表示有空闲，橙色表示紧张，红色表示无空闲
-- [x] 前端关注列表功能：关注的站点显示在站点的最上方
-- [x] 可以显示当前位置（需用户授权地理位置权限）
-- [x] 支持服务商筛选功能（前端下拉框）
-- [x] 支持校区筛选功能（玉泉\紫金港\华家池）
-  - 玉泉校区
-      ![campus_1](assets/campus_01.png)
-  - 紫金港校区
-      ![campus_2](assets/campus_02.png)
-  - 华家池校区
-      ![campus_3](assets/campus_03.png)
-- [x] 支持高德地图、OpenStreetMap、腾讯地图地图后端
-- [x] 支持地图下载功能
-- [x] 支持夜间模式（按钮切换深色/浅色模式）
+- [x] React + Vite + Tailwind 构建 SPA，组件化 Header/地图/列表/关注控件。
+- [x] Apache ECharts + `echarts-extension-amap` 渲染单一高德底图，标记按可用性自动着色（绿=空闲、橙=紧张、红=无空闲）。
+- [x] 校区/服务商筛选、夜间模式、站点关注列表、本地存储偏好与自动刷新。
+- [x] 地图支持定位 + 站点导航（提示/双击打开高德或系统地图链接），站点列表保留进度条、关注排序、夜间提示等交互。
+- [x] 校区摘要概览：在地图顶部即时看到各校区空闲桩数量。
   - 浅色模式
     ![web-light](assets/web_light.png)
   - 深色模式
@@ -72,6 +62,22 @@ ZJU Charger 基于 FastAPI 开发，瞄准**校内充电桩不好找、供应商
 - [Supabase 数据库架构](./docs/07-supabase-schema.md) - Supabase 数据库表结构和使用说明
 - [API 参考](./docs/08-api.md) - 后端 REST API 描述与示例
 
+## Web 部署
+
+1. 安装依赖并准备环境变量：
+
+   ```bash
+   cd web
+   npm install
+   cp .env.example .env  # 设置 VITE_AMAP_KEY、可选的 VITE_API_BASE 等
+   ```
+
+2. 本地调试：`npm run dev`，Vite 会在 `http://localhost:5173` 提供热更新，API 默认指向同源 FastAPI（或通过 `VITE_API_BASE` 指向远端 API）。
+
+3. 生成静态内容：`npm run build`（可选 `npm run preview` 验证）。`dist/` 交给任意静态托管（如 GitHub Pages、Cloudflare Pages、Caddy/Nginx 等）；FastAPI 只暴露 `/api/*`，不再负责前端文件。
+
+4. 前后端分离部署时，务必在构建前设置 `VITE_API_BASE=https://your-api-domain`（例如 `https://charger.philfan.cn`），使浏览器向正确的 FastAPI 实例发起请求。
+
 ## 最小抓取示例
 
 可以使用 `fetcher/minium_get_status.py` 进行简单的状态查询：
@@ -95,7 +101,7 @@ flowchart TD
 
     A["iOS 快捷指令<br/>1. 关注点快速查询"]
 
-    B["本地网页<br/>index.html<br/>(AJAX)"]
+    B["React Web SPA<br/>Vite bundle"]
 
     C["FastAPI API 服务"]
 
@@ -124,7 +130,7 @@ flowchart TD
     G <--> |写入缓存| E
 ```
 
-所有查询来源（网页、钉钉、GitHub Action）都调用统一 API 和 ProviderManager，逻辑完全不重复。系统采用多服务商架构，支持同时显示和筛选多个服务商的充电桩数据。
+所有查询来源（React Web SPA、钉钉、GitHub Action）都调用统一 API 和 ProviderManager，逻辑完全不重复。前端通过 Vite 构建的 React + Apache ECharts-on-AMap 客户端消费这些 API，系统则保持多服务商架构以支持并发筛选。
 
 ## 项目结构
 
@@ -150,10 +156,10 @@ project/
 │   ├── bot.py                # 钉钉机器人封装
 │   ├── webhook.py            # 钉钉 webhook 路由
 │   └── commands.py           # 命令解析和执行
-├── web/                      # 前端文件
-│   ├── index.html            # 地图 + 列表页面（支持服务商筛选）
-│   ├── script.js             # 前端逻辑（支持多服务商）
-│   └── style.css             # 样式文件
+├── web/                      # React + Vite 前端
+│   ├── package.json          # npm scripts、依赖
+│   ├── index.html            # Vite 入口
+│   └── src/                  # App.tsx、组件、hooks、服务、样式
 ├── script/                   # iOS 快捷指令
 │   ├── README.md             # 快捷指令使用说明
 │   └── *.shortcut            # 快捷指令文件
@@ -191,11 +197,9 @@ project/
 
 ### 前端
 
-- 使用 [leaflet-echarts](https://github.com/wandergis/leaflet-echarts) 实现地图可视化功能。
-- 使用 [Leaflet.EasyPrint](https://github.com/rowanwins/leaflet-easyPrint) 插件实现地图下载功能。
-- 使用 [wandergis/coordtransform](https://github.com/wandergis/coordtransform) 实现百度坐标（BD09）、国测局坐标（火星坐标，GCJ02）、和 WGS84 坐标系之间的转换函数，解决坐标偏移的问题。
-- 使用 [htoooth/Leaflet.ChineseTmsProviders](https://github.com/htoooth/Leaflet.ChineseTmsProviders/tree/master) 实现多种地图支持。
-- 使用 [Tailwind CSS](https://tailwindcss.com/) 样式库。
+- 使用 [Apache ECharts](https://echarts.apache.org/) + [echarts-extension-amap](https://github.com/plainheart/echarts-extension-amap) 完成地图渲染。
+- 使用 [Tailwind CSS](https://tailwindcss.com/) 负责 UI 样式，配合 React 组件化实现响应式页面。
+- 坐标转换由自定义 `geo` 工具实现（WGS84 ↔ GCJ02 ↔ BD09）。
 
 ### 其他
 
