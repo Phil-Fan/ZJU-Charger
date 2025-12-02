@@ -22,12 +22,19 @@ ZJU Charger 基于 FastAPI 开发，瞄准**校内充电桩不好找、供应商
 Next.js 框架开发：App Router + TypeScript + shadcn/ui
 
 - [x] Apache ECharts + `echarts-extension-amap` 提供高德地图服务。
+- [x] 支持三校区地图切换/服务商筛选。。
+  ![campus_01](assets/campus_01.png)
+  ![campus_02](assets/campus_02.png)
+  ![campus_03](assets/campus_03.png)
 - [x] 绿/橙/红三色编码空闲、紧张、故障状态。
-- [x] 校区/服务商筛选。
 - [x] 双击站点打开导航卡片，支持高德地图和系统地图。
+  ![navigate](assets/navigate.png)
 - [x] 支持实时定位，开启后持续追踪浏览器坐标、绘制用户标记。
 - [x] 关注列表通过 localStorage 实现。
+  ![watchlist](assets/watchlist.png)
 - [x] 界面与地图同时支持暗黑模式。
+  ![light](assets/web_light.png)
+  ![dark](assets/web_dark.png)
 - [x] 前端定时自动刷新。
 - [x] 夜间提示。
 
@@ -63,46 +70,6 @@ Next.js 框架开发：App Router + TypeScript + shadcn/ui
 - [Script 快捷指令文档](./docs/06-script-shortcuts.md) - iOS 快捷指令使用指南
 - [Supabase 数据库架构](./docs/07-supabase-schema.md) - Supabase 数据库表结构和使用说明
 - [API 参考](./docs/08-api.md) - 后端 REST API 描述与示例
-
-## Web 部署
-
-1. 安装依赖并准备环境变量：
-
-   ```bash
-   cd frontend
-   pnpm install
-   cp .env.local.example .env.local  # （如不存在可自行创建）
-   # 写入 NEXT_PUBLIC_AMAP_KEY=你的高德 JS SDK Key
-   # 可选 NEXT_PUBLIC_API_BASE=https://your-api-domain 指向 FastAPI
-   ```
-
-2. 本地调试：`pnpm dev`（默认端口 3000），Next.js 会以 App Router 形式渲染。需要实时 API 时可在本地同时运行 FastAPI 或设置 `NEXT_PUBLIC_API_BASE` 指向远端。
-
-3. 生产构建：`pnpm build && pnpm start` 验证输出；若使用静态托管，可运行 `pnpm export` 或将 `.next` 交由自建 Node 服务，FastAPI 依旧只提供 `/api/*`。
-
-4. 本仓库的 shadcn 组件已按照 Supabase 主题初始化，如需追加组件可运行 `pnpm dlx shadcn@latest add <component>`（若要重新拉取 Supabase 主题可执行 `pnpm dlx shadcn@latest add https://tweakcn.com/r/themes/supabase.json`，需确保网络可访问该源）。
-
-**环境变量注入高德 Key 与 API 域名**
-
-- Next.js 会自动加载 `.env*` 文件，凡是以 `NEXT_PUBLIC_` 前缀命名的变量会被编译到浏览器端，因此必须使用 `NEXT_PUBLIC_AMAP_KEY` 和 `NEXT_PUBLIC_API_BASE`。
-- 本地开发建议创建 `frontend/.env.local`：
-
-  ```ini
-  NEXT_PUBLIC_AMAP_KEY=dev-gaode-key
-  NEXT_PUBLIC_API_BASE=http://localhost:8000
-  ```
-
-  运行 `pnpm dev` 时会注入这些值，前端请求 `http://localhost:8000/api/*`，地图加载本地 Key。
-- 远程部署（Docker、Caddy、Vercel 等）只需在环境中设置同名变量，例如 `.env.production` 或部署平台的环境变量面板：
-
-  ```ini
-  NEXT_PUBLIC_AMAP_KEY=prod-gaode-key
-  NEXT_PUBLIC_API_BASE=https://charger.philfan.cn
-  ```
-
-  执行 `pnpm build` 时 Next.js 会将其编译进静态产物。
-- 如果未设置 `NEXT_PUBLIC_API_BASE`，客户端会直接调用相对路径 `/api/*`，适用于前后端同域部署；只在需要跨域访问（如本地连远程 API）时赋值。
-- `NEXT_PUBLIC_REFRESH_INTERVAL`（可选）：前端自动刷新间隔（秒）。设置后会覆盖后端 `/api/config` 的 `fetch_interval`，方便按部署环境自定义。
 
 ## 最小抓取示例
 
