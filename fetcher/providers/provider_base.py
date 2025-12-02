@@ -16,7 +16,7 @@ ClientSession = aiohttp.ClientSession
 
 @dataclass
 class ProviderBase(ABC):
-    """充电桩服务商抽象基类"""
+    """服务商抽象基类"""
 
     # 【新增】定义 CSV 文件所在的根目录 (可以根据需要修改)
     # 实际应用中，这可以从配置中加载
