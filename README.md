@@ -19,7 +19,7 @@ ZJU Charger 基于 FastAPI 开发，瞄准**校内充电桩不好找、供应商
 
 ### 前端功能
 
-Next.js 框架开发：App Router + TypeScript + shadcn/ui
+Next.js 框架开发：App Router + TypeScript + shadcn/ui, 开源在 [Phil-Fan/zju-charger-frontend](https://github.com/Phil-Fan/zju-charger-frontend) 这个仓库。
 
 - [x] Apache ECharts + `echarts-extension-amap` 提供高德地图服务。
 - [x] 支持三校区地图切换/服务商筛选。。
@@ -71,20 +71,6 @@ Next.js 框架开发：App Router + TypeScript + shadcn/ui
 - [Supabase 数据库架构](./docs/07-supabase-schema.md) - Supabase 数据库表结构和使用说明
 - [API 参考](./docs/08-api.md) - 后端 REST API 描述与示例
 
-## 最小抓取示例
-
-可以使用 `fetcher/minium_get_status.py` 进行简单的状态查询：
-
-```shell
-python fetcher/minium_get_status.py --address 50359163
-```
-
-或者直接使用 API 接口：
-
-```shell
-curl http://localhost:8000/api/status?id=29e30f45
-```
-
 ## 系统架构
 
 在开发层面，目标实现高内聚、低耦合、易于扩展。
@@ -123,7 +109,9 @@ flowchart TD
     G <--> |写入缓存| E
 ```
 
-所有查询来源（React Web SPA、钉钉、GitHub Action）都调用统一 API 和 ProviderManager，逻辑完全不重复。前端通过 Vite 构建的 React + Apache ECharts-on-AMap 客户端消费这些 API，系统则保持多服务商架构以支持并发筛选。
+所有查询来源（React Web SPA、钉钉、GitHub Action）都调用统一 API 和 ProviderManager，逻辑完全不重复。
+
+前端通过 Vite 构建的 React + Apache ECharts-on-AMap 客户端消费这些 API，系统则保持多服务商架构以支持并发筛选。
 
 ## 项目结构
 
@@ -144,6 +132,7 @@ project/
 ├── server/
 │   ├── api.py                # FastAPI 主服务（直接调用 db/ 仓库）
 │   ├── config.py             # 环境变量配置（支持服务商配置）
+│   ├── run_server.py         # 服务器启动脚本
 │   └── logging_config.py     # 日志配置
 ├── ding/
 │   ├── bot.py                # 钉钉机器人封装
@@ -157,8 +146,7 @@ project/
 ├── script/                   # iOS 快捷指令
 │   ├── README.md             # 快捷指令使用说明
 │   └── *.shortcut            # 快捷指令文件
-├── run_server.py             # 服务器启动脚本
-├── serve.sh                  # 快速启动脚本（自动安装依赖）
+├── serve.sh                  # 快速启动脚本（自动安装依赖，调用 server.run_server 模块）
 └── requirements.txt          # 依赖库
 ```
 
@@ -192,7 +180,7 @@ project/
 ### 前端
 
 - 使用 [Next.js](https://nextjs.org/) 实现前端框架。
-- 使用 高德地图 Web JS SDK 实现地图渲染。
+- 使用 [高德地图 Web JS SDK](https://console.amap.com/dev/index) 实现地图渲染。
 - 使用 [Apache ECharts](https://echarts.apache.org/) + [echarts-extension-amap](https://github.com/plainheart/echarts-extension-amap) 完成地图渲染。
 - 使用 [shadcn/ui](https://ui.shadcn.com/) 实现组件库，使用 [tweakcn](https://tweakcn.com/editor/theme) 生成 Supabase 主题。
 - 使用 [Biome](https://biomejs.dev/) 实现代码检查与格式化。

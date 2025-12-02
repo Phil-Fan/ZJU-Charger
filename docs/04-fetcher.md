@@ -195,12 +195,20 @@ CSV 每行会被转换为如下结构（仅示意）：
 
 API 层会从 `latest` + `stations` 表组装 `/api/status` 所需的 JSON，前端无需关心数据库细节。若 `.env` 中将 `SUPABASE_HISTORY_ENABLED=false`，则 fetcher 仍需更新 `latest` 与 `stations`（尤其是 `devids`），但可以跳过历史 `usage` 表的插入。
 
+## 最小抓取示例
+
+尼普顿服务商可以使用 `fetcher/providers/minium_neptune.py` 进行简单的状态查询：
+
+```shell
+python fetcher/providers/minium_neptune.py --address 50359163
+```
+
 ## 测试
 
-启动服务器并测试：
+启动服务器并测试（使用模块方式）：
 
 ```bash
-python run_server.py
+python -m server.run_server
 ```
 
 访问 `http://localhost:8000/api/status?provider=your_provider` 查看新服务商的数据。

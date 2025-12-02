@@ -406,12 +406,6 @@ def _build_cached_response(
     }
 
 
-@app.get("/")
-async def root():
-    """根路径 - 重定向到前端页面"""
-    logger.info("访问根路径，重定向到 /web/")
-    return RedirectResponse(url="/web/")
-
 
 @app.get("/api")
 @apply_rate_limit(Config.RATE_LIMIT_DEFAULT)

@@ -55,26 +55,26 @@ SUPABASE_KEY=your-service-role-key-here
 
 `serve.sh` 脚本会自动安装依赖并启动服务器，适合快速启动。
 
-#### 方式二：使用 Python 脚本
+#### 方式二：使用 Python 模块
 
 ```bash
-python run_server.py
+python -m server.run_server
 ```
 
 也可以增加一些启动参数：
 
 ```bash
-# 基本启动
-python run_server.py
+# 基本启动（使用模块方式）
+python -m server.run_server
 
 # 指定主机和端口
-python run_server.py --host 0.0.0.0 --port 8000
+python -m server.run_server --host 0.0.0.0 --port 8000
 
 # 启用自动重载（开发模式）
-python run_server.py --reload
+python -m server.run_server --reload
 
 # 保存日志到文件
-python run_server.py --log-file logs/server.log
+python -m server.run_server --log-file logs/server.log
 
 # 设置日志级别
 python run_server.py --log-level DEBUG
@@ -103,39 +103,20 @@ sudo systemctl start caddy
 sudo systemctl status caddy
 ```
 
-启动 Caddy：
+配置 Caddyfile，默认在`/etc/caddy/Caddyfile`下
 
 ```shell
-sudo caddy run --config /etc/caddy/Caddyfile
-```
-
-配置 Caddyfile：
-
-```shell
-https://charger.philfan.cn {
+your_domain {
     reverse_proxy http://127.0.0.1:8000
+    tls your_email@your_domain.com # 可选，用于申请 HTTPS 证书
 }
 ```
 
-配置 SSL：
-
-```shell
-sudo caddy cert issue --domain charger.philfan.cn
-```
-
-```shell
-caddy run --config ./Caddyfile.json
-```
+启动 Caddy：
 
 ```shell
 caddy start --config ./Caddyfile.json
 ```
-
-```shell
-sudo systemctl start caddy
-```
-
-caddy 的默认配置文件在 `/etc/caddy/Caddyfile` 下。
 
 ### 方式二：使用 Docker
 
@@ -235,7 +216,7 @@ Docker 镜像已经内置在项目根目录下的 `Dockerfile` 中，适合希�
 
      说明宿主机上的 Docker 服务尚未启动或当前用户没有访问 `docker.sock` 的权限。请先启动 Docker Desktop（或 `sudo systemctl start docker` 等命令），确保 Docker Engine 运行，再次执行 `docker compose up -d`。若问题依旧，请检查该 socket 的权限或将用户加入 `docker` 用户组。
 
-### 方式三：使用 Nginx 反向代理
+### 方式三：使用 Nginx 反向代理（不推荐）
 
 1. 安装 Nginx：
 
@@ -438,7 +419,7 @@ RATE_LIMIT_STATUS=3/minute
    netstat -tulpn | grep 8000
 
    # 修改端口
-   python run_server.py --port 8001
+   python -m server.run_server --port 8001
    ```
 
 2. **端口开放问题**

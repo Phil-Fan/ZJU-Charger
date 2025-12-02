@@ -19,10 +19,6 @@ class Config:
     API_HOST = os.getenv("API_HOST", "0.0.0.0")
     API_PORT = int(os.getenv("API_PORT", "8000"))
 
-    # 数据抓取配置
-    FETCH_INTERVAL = int(
-        os.getenv("FETCH_INTERVAL", "60")
-    )  # 前端自动刷新间隔（秒），默认60秒
     BACKEND_FETCH_INTERVAL = int(
         os.getenv("BACKEND_FETCH_INTERVAL", "300")
     )  # 后端定时抓取间隔（秒），默认300秒（5分钟）

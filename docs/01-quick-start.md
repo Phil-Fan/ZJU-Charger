@@ -4,47 +4,77 @@
 
 ## Web 页面
 
-### 访问方式
-
-1. **在线访问**：部署后的 Next.js 前端（`https://charger.philfan.cn/`）。
-2. **本地开发**：进入 `frontend/` 目录运行 Next.js，即可通过 `http://localhost:3000` 预览；后端只需暴露 `/api/*` 接口（本地 FastAPI 或远端 API 均可，通过 `NEXT_PUBLIC_API_BASE` 指定）。
-
 ### 本地开发步骤
 
-```bash
-cd frontend
-pnpm install
-cp .env.local.example .env.local  # 若示例文件不存在，可直接创建 .env.local
-echo "NEXT_PUBLIC_AMAP_KEY=你的高德JSKey" >> .env.local
-pnpm dev                          # 启动 Next.js 开发服务器
+1. 克隆仓库
+
+    ```bash
+    git clone https://github.com/Phil-Fan/zju-charger-frontend.git
+    ```
+
+2. 安装 pnpm
+
+    ```bash
+    npm install -g pnpm
+    ```
+
+3. 安装依赖
+
+    ```bash
+    pnpm install
+    ```
+
+4. 创建 `.env.local` 文件
+
+    ```bash
+    touch .env.local
+    echo "NEXT_PUBLIC_AMAP_KEY=你的高德JSKey" >> .env.local
+    echo "NEXT_PUBLIC_API_BASE=http://localhost:8000" >> .env.local
+    ```
+
+5. 启动开发服务器
+
+    ```bash
+    pnpm dev
+    ```
+
+### 构建与部署
+
+1. 安装 pm2
+
+    ```bash
+    npm install -g pm2
+    ```
+
+2. 构建
+
+    ```bash
+    pnpm build
+    ```
+
+3. 启动
+
+    ```bash
+    pm2 start pnpm --name frontend -- start --port 3000
+    ```
+
+### 本地开发
+
+```ini
+NEXT_PUBLIC_AMAP_KEY=dev-gaode-key
+NEXT_PUBLIC_API_BASE=http://localhost:8000
 ```
 
-构建与部署：
+缺少 `NEXT_PUBLIC_API_BASE` 时会默认使用相对路径 `/api/*`，方便你用 Caddy 或 Next 代理后端。
 
-```bash
-pnpm build        # 生成 .next 输出
-pnpm start        # 以 Node 方式预览生产包
-# 或结合你使用的托管环境（Vercel、Caddy、Docker 等）
+远程部署 => `.env.production` 或部署平台环境变量
+
+```ini
+NEXT_PUBLIC_AMAP_KEY=prod-gaode-key
+NEXT_PUBLIC_API_BASE=https://charger.philfan.cn
 ```
 
-Next.js App Router 版本同样通过 `.env*` 注入配置：
-
-- 本地开发 => `frontend/.env.local`
-
-  ```ini
-  NEXT_PUBLIC_AMAP_KEY=dev-gaode-key
-  NEXT_PUBLIC_API_BASE=http://localhost:8000
-  ```
-
-  缺少 `NEXT_PUBLIC_API_BASE` 时会默认使用相对路径 `/api/*`，方便你用 Caddy 或 Next 代理后端。
-- 远程部署 => `.env.production` 或部署平台环境变量
-
-  ```ini
-  NEXT_PUBLIC_AMAP_KEY=prod-gaode-key
-  NEXT_PUBLIC_API_BASE=https://charger.philfan.cn
-  ```
-
-  构建 (`pnpm build`) 阶段 Next.js 会把这些值打包进浏览器脚本。
+构建 (`pnpm build`) 阶段 Next.js 会把这些值打包进浏览器脚本。
 
 > 只需记住：凡是要给浏览器用的变量必须带 `NEXT_PUBLIC_` 前缀；如果某个环境无须跨域访问，可不设置 `NEXT_PUBLIC_API_BASE`。
 
@@ -107,6 +137,8 @@ Next.js App Router 版本同样通过 `.env*` 注入配置：
 详细配置说明请参考 [钉钉机器人文档](./05-dingbot.md)。
 
 ## API 接口
+
+> 旧版 `/api/web` 接口已下线，所有客户端统一通过 `/api/status`、`/api/stations`、`/api/config` 等端点获取数据。
 
 ### 基础接口
 

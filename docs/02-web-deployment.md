@@ -31,6 +31,8 @@ frontend/
 
 ## 数据流与 API
 
+> 旧版 `/api/web` 接口已移除，前端统一通过 `/api/status`、`/api/stations`、`/api/providers`、`/api/config` 等端点获取数据。
+
 1. **配置拉取**：`useConfig()` 在挂载后调用 `/api/config`，将 `fetch_interval`（秒）写入状态并驱动 `useAutoRefresh()`，失败时自动回退到 60 秒。
 2. **服务商清单**：`useProviders()` 请求 `/api/providers`，结果传入 Header 组件以渲染筛选下拉框。
 3. **站点状态**：`useStations()` 并行请求 `/api/status`（支持 `?provider=` 筛选）与 `/api/stations`，通过 `mergeStations()` 合并实时数据与元数据，保证未抓取站点也能显示在地图/列表，并标记 `isFetched=false`。
@@ -64,6 +66,7 @@ frontend/
 ## 自动刷新与提示机制
 
 - `useConfig()` 读取 `fetch_interval`，`useAutoRefresh()` 依据该值调用 `useStations().refresh()`。
+- 刷新频率完全由服务器环境变量 `FETCH_INTERVAL` + `/api/config` 控制，前端不再提供 `NEXT_PUBLIC_REFRESH_INTERVAL` 覆盖项。
 - Header 中的“刷新”按钮直接触发 `refresh()`，并在 UI 上立刻进入 loading 状态。
 - `RateLimitToast` 根据 `rateLimited` 状态展示限流提示；其余错误在列表卡片中提示排查步骤。
 
@@ -89,7 +92,6 @@ Next.js + shadcn 仍保持组件化拆分，部署方式（Node/Vercel/自托管
     ```ini
     NEXT_PUBLIC_AMAP_KEY=dev-gaode-key
     NEXT_PUBLIC_API_BASE=http://localhost:8000
-    NEXT_PUBLIC_REFRESH_INTERVAL=60
     ```
 
   - 生产（`.env.production` 或部署平台）
@@ -97,10 +99,9 @@ Next.js + shadcn 仍保持组件化拆分，部署方式（Node/Vercel/自托管
     ```ini
     NEXT_PUBLIC_AMAP_KEY=prod-gaode-key
     NEXT_PUBLIC_API_BASE=https://charger.philfan.cn
-    NEXT_PUBLIC_REFRESH_INTERVAL=120
     ```
 
-  - 若前后端同域部署，可省略 `NEXT_PUBLIC_API_BASE`，客户端会直接请求 `/api/*`；设置 `NEXT_PUBLIC_REFRESH_INTERVAL` 可覆盖后端 `/api/config` 中的 `fetch_interval`。
+  - 若前后端同域部署，可省略 `NEXT_PUBLIC_API_BASE`，客户端会直接请求 `/api/*`。
 - `pnpm dev` 用于本地调试；`pnpm build && pnpm start` 可验证生产输出，随后按需部署（Vercel、自建 Node/Caddy 等）。
 
 ### Vercel 部署
@@ -108,7 +109,7 @@ Next.js + shadcn 仍保持组件化拆分，部署方式（Node/Vercel/自托管
 1. 将前端代码推送到 GitHub/GitLab（如果使用子模块，请在 Vercel 项目设置里开启 `Git Submodules`）。
 2. Vercel 仪表盘中新建项目 → 关联仓库，框架选择 **Next.js**。
 3. Build Command 使用 `pnpm build`，Output 设置为默认 `.next` 即可。
-4. 在 **Environment Variables** 中添加 `NEXT_PUBLIC_AMAP_KEY`、`NEXT_PUBLIC_API_BASE`（如需）、`NEXT_PUBLIC_REFRESH_INTERVAL`。
+4. 在 **Environment Variables** 中添加 `NEXT_PUBLIC_AMAP_KEY`、`NEXT_PUBLIC_API_BASE`（如需）。
 5. 保存后 Vercel 会自动构建并生成 preview/production 域名；如果 API 与前端不同源，记得在 FastAPI 端开启 CORS。
 
 ### Cloudflare Pages 部署
@@ -128,5 +129,5 @@ Cloudflare Pages 可以使用 Next.js 的“适配器”模式，也可以简单
    ```
 
    然后在 Pages 中把 Build command 改为 `pnpm run cf:build`，output 目录使用 `.vercel/output/static`。
-4. 同样在 Pages 项目设置里添加 `NEXT_PUBLIC_AMAP_KEY`、`NEXT_PUBLIC_API_BASE`、`NEXT_PUBLIC_REFRESH_INTERVAL` 环境变量。
+4. 同样在 Pages 项目设置里添加 `NEXT_PUBLIC_AMAP_KEY`、`NEXT_PUBLIC_API_BASE` 环境变量。
 5. Cloudflare 默认开启缓存，如需最新数据可在 Workers/Pages Rules 中为 `/api/*` 路径禁用缓存。

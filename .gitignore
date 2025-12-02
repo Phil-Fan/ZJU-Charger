@@ -28,3 +28,4 @@ Thumbs.db
 .pytest_cache/
 AGENTS.md
 openspec/
+data/

@@ -3,6 +3,8 @@
 - [Swagger UI](https://charger.philfan.cn/docs)  
 - [ReDoc](https://charger.philfan.cn/redoc)
 
+> 注意：旧版 `/api/web` 接口已淘汰，统一使用本文列出的 REST 端点。
+
 ## GET `/api`
 
 返回 API 元信息与简要说明，可用于健康检查或在前端展示欢迎语。  

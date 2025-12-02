@@ -3,15 +3,15 @@
 快速启动 FastAPI 服务器
 
 用法:
-    python run_server.py
-    python run_server.py --host 0.0.0.0 --port 8000
-    python run_server.py --log-file logs/server.log  # 保存日志到文件
+    python -m server.run_server
+    python -m server.run_server --host 0.0.0.0 --port 8000
+    python -m server.run_server --log-file logs/server.log  # 保存日志到文件
 """
 import argparse
 import logging
 import uvicorn
-from server.config import Config
-from server.logging_config import setup_logging
+from .config import Config
+from .logging_config import setup_logging
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="启动 ZJU Charger API 服务器")
