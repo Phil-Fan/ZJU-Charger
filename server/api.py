@@ -207,7 +207,6 @@ async def startup_event():
     # 记录配置信息
     logger.info(f"配置信息：")
     logger.info(f"  - API 地址: {Config.API_HOST}:{Config.API_PORT}")
-    logger.info(f"  - 前端自动刷新间隔: {Config.FETCH_INTERVAL} 秒")
     logger.info(f"  - 后端定时抓取间隔: {Config.BACKEND_FETCH_INTERVAL} 秒")
     if Config.RATE_LIMIT_ENABLED:
         logger.info(f"  - 接口限流: 已启用")
