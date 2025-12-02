@@ -28,7 +28,7 @@
 
     ```bash
     touch .env.local
-    echo "NEXT_PUBLIC_AMAP_KEY=你的高德JSKey" >> .env.local
+    echo "NEXT_PUBLIC_AMAP_KEY=你的高德 JSKey" >> .env.local
     echo "NEXT_PUBLIC_API_BASE=http://localhost:8000" >> .env.local
     ```
 
