@@ -34,13 +34,15 @@ class ProviderManager:
             neptune_junior.load_stations()
         except Exception as exc:
             logger.error("加载 %s 站点失败: %s", neptune.provider, exc, exc_info=True)
-            logger.error("加载 %s 站点失败: %s", neptune_junior.provider, exc, exc_info=True)
+            logger.error(
+                "加载 %s 站点失败: %s", neptune_junior.provider, exc, exc_info=True
+            )
         self.providers.append(neptune)
         logger.info(f"已注册服务商: {neptune.provider}")
 
         self.providers.append(neptune_junior)
         logger.info(f"已注册服务商: {neptune_junior.provider}")
-        
+
     def list_providers(self) -> List[Dict[str, str]]:
         """返回当前已注册的服务商列表"""
         return [{"id": prov.provider, "name": prov.provider} for prov in self.providers]

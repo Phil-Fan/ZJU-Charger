@@ -15,16 +15,13 @@ logger = logging.getLogger(__name__)
 @dataclass
 class NeptuneJuniorProvider(ProviderBase):
     """尼普顿智慧生活公众号服务商适配器"""
+
     token: str = ""
-    
+
     def __post_init__(self):
         """初始化时从配置读取 openid 和 unionid"""
-        self.openid = Config.get_provider_config_value(
-            "neptune_junior", "openid", ""
-        )
-        self.unionid = Config.get_provider_config_value(
-            "neptune_junior", "unionid", ""
-        )
+        self.openid = Config.get_provider_config_value("neptune_junior", "openid", "")
+        self.unionid = Config.get_provider_config_value("neptune_junior", "unionid", "")
 
     @property
     def provider(self) -> str:
@@ -69,7 +66,7 @@ class NeptuneJuniorProvider(ProviderBase):
                 f"listChargingPileDistByArea?chargingAreaId={device_id}"
             )
 
-            async with session.get(url, headers={'REQ-NPD-TOKEN': self.token}) as res:
+            async with session.get(url, headers={"REQ-NPD-TOKEN": self.token}) as res:
                 res.raise_for_status()
                 resp = await res.json()
 
@@ -97,7 +94,7 @@ class NeptuneJuniorProvider(ProviderBase):
 
         total = free = used = error = booking = 0
 
-        for (_, (data, exc)) in zip(station.device_ids, results):
+        for _, (data, exc) in zip(station.device_ids, results):
             if exc or data is None:
                 continue
             total += data["total"]
@@ -122,8 +119,7 @@ class NeptuneJuniorProvider(ProviderBase):
             return []
 
         tasks = [
-            self.fetch_station_status(station, session)
-            for station in self.station_list
+            self.fetch_station_status(station, session) for station in self.station_list
         ]
         results = await asyncio.gather(*tasks)
 
@@ -131,7 +127,27 @@ class NeptuneJuniorProvider(ProviderBase):
 
         for station, (status, exc) in zip(self.station_list, results):
             if exc or status is None:
-                final_list.append({
+                final_list.append(
+                    {
+                        "provider": self.provider,
+                        "hash_id": station.hash_id,
+                        "name": station.name,
+                        "campus_id": station.campus_id,
+                        "campus_name": station.campus_name,
+                        "lat": station.lat,
+                        "lon": station.lon,
+                        "device_ids": station.device_ids,
+                        "updated_at": station.updated_at,
+                        "free": 0,
+                        "used": 0,
+                        "total": 0,
+                        "error": 0,
+                    }
+                )
+                continue
+
+            final_list.append(
+                {
                     "provider": self.provider,
                     "hash_id": station.hash_id,
                     "name": station.name,
@@ -141,27 +157,11 @@ class NeptuneJuniorProvider(ProviderBase):
                     "lon": station.lon,
                     "device_ids": station.device_ids,
                     "updated_at": station.updated_at,
-                    "free": 0,
-                    "used": 0,
-                    "total": 0,
-                    "error": 0,
-                })
-                continue
-
-            final_list.append({
-                "provider": self.provider,
-                "hash_id": station.hash_id,
-                "name": station.name,
-                "campus_id": station.campus_id,
-                "campus_name": station.campus_name,
-                "lat": station.lat,
-                "lon": station.lon,
-                "device_ids": station.device_ids,
-                "updated_at": station.updated_at,
-                "free": status["free"],
-                "used": status["used"],
-                "total": status["total"],
-                "error": status["error"],
-            })
+                    "free": status["free"],
+                    "used": status["used"],
+                    "total": status["total"],
+                    "error": status["error"],
+                }
+            )
 
         return final_list

@@ -17,6 +17,14 @@ ZJU Charger 基于 FastAPI 开发，瞄准**校内充电桩不好找、供应商
 
 > **免责声明**：本项目仅用于学习交流，不得用于商业盈利与非法用途。使用本项目所造成的任何后果，由使用者自行承担，作者不承担任何责任。请遵守相关法律法规。
 
+## News
+
+- 2025.12.02 - 重构前端 UI 支持尼普顿智慧生活公众号查询
+- 2025.11.30 - GitHub 达到 50 Star，感谢支持！[校内公众号宣传贴](https://mp.weixin.qq.com/s/8tX1yHx_uvv64XQashPpTA)
+- 2025.12.01 - 支持 iOS 快捷指令，增加华家池校区 [CC98 宣传贴](https://www.cc98.org/topic/6359446)（十大）
+- 2025.11.29 - 完成后端页面开发，网站上线 [CC98 宣传贴](https://www.cc98.org/topic/6357576)（十大第一）
+- 2025.11.28 - 发现脚本，制作可视化 [CC98 宣传贴](https://www.cc98.org/topic/6357005)
+
 ## 功能特性
 
 ### 前端功能
@@ -73,7 +81,7 @@ Next.js 框架开发：App Router + TypeScript + shadcn/ui, 开源在 [Phil-Fan/
 - [Supabase 数据库架构](./docs/07-supabase-schema.md) - Supabase 数据库表结构和使用说明
 - [API 参考](./docs/08-api.md) - 后端 REST API 描述与示例
 
-## 系统架构
+### 系统架构
 
 在开发层面，目标实现高内聚、低耦合、易于扩展。
 
@@ -115,7 +123,7 @@ flowchart TD
 
 前端通过 Vite 构建的 React + Apache ECharts-on-AMap 客户端消费这些 API，系统则保持多服务商架构以支持并发筛选。
 
-## 项目结构
+### 项目结构
 
 ```text
 project/
@@ -190,6 +198,7 @@ project/
 
 ### 其他
 
+- 特别鸣谢 [@qychen2001](https://github.com/qychen2001) 对项目的大力支持！
 - 使用 [minima](https://github.com/jekyll/minima) 主题生成项目文档。
 - 使用 [huacnlee/autocorrect](https://github.com/huacnlee/autocorrect/), [DavidAnson/markdownlint-cli2-action](https://github.com/DavidAnson/markdownlint-cli2-action) 与 [gaurav-nelson/github-action-markdown-link-check](https://github.com/gaurav-nelson/github-action-markdown-link-check) 对 Markdown 文档进行自动化检查。
 - 使用 [black](https://github.com/psf/black) 与 [lgeiger/black-action](https://github.com/lgeiger/black-action) 对 Python 代码进行自动化格式检查。
