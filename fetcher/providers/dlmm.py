@@ -42,10 +42,10 @@ class DlmmProvider(ProviderBase):
         return None
 
     async def fetch_device_status(
-            self, session: aiohttp.ClientSession, device_id: str
-        ) -> Tuple[Optional[Dict[str, Any]], Optional[Exception]]:
+        self, session: aiohttp.ClientSession, device_id: str
+    ) -> Tuple[Optional[Dict[str, Any]], Optional[Exception]]:
         payload = {"stationNo": f"{device_id}"}
-        url = 'https://dlmmplususer.dianlvmama.com/dlServer/dlmm/getStation'
+        url = "https://dlmmplususer.dianlvmama.com/dlServer/dlmm/getStation"
         try:
             async with session.post(
                 url, headers={"authorization": self.token, "tenant-id": "1"}, json=payload
@@ -76,10 +76,7 @@ class DlmmProvider(ProviderBase):
         if not station.device_ids:
             return {"total": 0, "free": 0, "used": 0, "error": 0}, None
 
-        tasks = [
-            self.fetch_device_status(session, device_id)
-            for device_id in station.device_ids
-        ]
+        tasks = [self.fetch_device_status(session, device_id) for device_id in station.device_ids]
         results = await asyncio.gather(*tasks)
 
         total = free = used = error = 0

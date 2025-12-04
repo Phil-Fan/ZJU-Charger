@@ -13,13 +13,7 @@ from pathlib import Path
 from typing import Iterable, List
 
 # 校园 ID 映射，定义在外部，作为常量
-CAMPUS_NAME_MAP = {
-    1: "玉泉校区",
-    2: "紫金港校区",
-    3: "华家池校区",
-    4: "西溪校区",
-    5: "之江校区"
-}
+CAMPUS_NAME_MAP = {1: "玉泉校区", 2: "紫金港校区", 3: "华家池校区", 4: "西溪校区", 5: "之江校区"}
 
 
 # 辅助函数：获取带时区的当前时间戳

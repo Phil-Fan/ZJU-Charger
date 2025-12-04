@@ -10,6 +10,8 @@ from fetcher.providers.provider_base import ProviderBase
 from fetcher.providers.neptune import NeptuneProvider
 from fetcher.providers.neptune_junior import NeptuneJuniorProvider
 from fetcher.providers.dlmm import DlmmProvider
+from fetcher.providers.else_provider import ElseProvider
+
 logger = logging.getLogger(__name__)
 
 
@@ -30,20 +32,25 @@ class ProviderManager:
         neptune = NeptuneProvider()
         neptune_junior = NeptuneJuniorProvider()
         dlmm = DlmmProvider()
+        else_provider = ElseProvider()
         try:
             neptune.load_stations()
             neptune_junior.load_stations()
             dlmm.load_stations()
+            else_provider.load_stations()
         except Exception as exc:
             logger.error("加载 %s 站点失败: %s", neptune.provider, exc, exc_info=True)
             logger.error("加载 %s 站点失败: %s", neptune_junior.provider, exc, exc_info=True)
             logger.error("加载 %s 站点失败: %s", dlmm.provider, exc, exc_info=True)
+            logger.error("加载 %s 站点失败: %s", else_provider.provider, exc, exc_info=True)
         self.providers.append(neptune)
         logger.info(f"已注册服务商: {neptune.provider}")
         self.providers.append(neptune_junior)
         logger.info(f"已注册服务商: {neptune_junior.provider}")
         self.providers.append(dlmm)
         logger.info(f"已注册服务商: {dlmm.provider}")
+        self.providers.append(else_provider)
+        logger.info(f"已注册服务商: {else_provider.provider}")
 
     def list_providers(self) -> List[Dict[str, str]]:
         """返回当前已注册的服务商列表"""
