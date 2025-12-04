@@ -71,12 +71,18 @@ class NeptuneJuniorProvider(ProviderBase):
                 resp = await res.json()
 
                 data = resp.get("data", {})
+                total = data.get("totalPileNumber", 0)
+                free = data.get("totalFreeNumber", 0)
+                error = data.get("totalTroubleNumber", 0)
+                booking = data.get("totalBookingNumber", 0)
+                upgrade = data.get("totalUpgradeNumber", 0)
+                used = total - free - error - booking - upgrade
                 return {
-                    "total": data.get("totalPileNumber", 0),
-                    "free": data.get("totalFreeNumber", 0),
-                    "used": data.get("totalUsedNumber", 0),
-                    "error": data.get("totalTroubleNumber", 0),
-                    "booking": data.get("totalBookingNumber", 0),
+                    "total": total,
+                    "free": free,
+                    "used": used,
+                    "error": error,
+                    "booking": booking,
                 }, None
 
         except Exception as e:

@@ -192,6 +192,7 @@ project/
 - 使用 [Next.js](https://nextjs.org/) 实现前端框架。
 - 使用 [高德地图 Web JS SDK](https://console.amap.com/dev/index) 实现地图渲染。
 - 使用 [Apache ECharts](https://echarts.apache.org/) + [echarts-extension-amap](https://github.com/plainheart/echarts-extension-amap) 完成地图渲染。
+- 使用 [Apple URL Scheme - Map Links](https://developer.apple.com/library/archive/featuredarticles/iPhoneURLScheme_Reference/MapLinks/MapLinks.html) 与 [高德地图手机版 API - 路径规划](https://lbs.amap.com/api/amap-mobile/guide/android/navigation) 实现地图跳转。
 - 使用 [shadcn/ui](https://ui.shadcn.com/) 实现组件库，使用 [tweakcn](https://tweakcn.com/editor/theme) 生成 Supabase 主题。
 - 使用 [Biome](https://biomejs.dev/) 实现代码检查与格式化。
 - 坐标转换由自定义 `geo` 工具实现（WGS84 ↔ GCJ02 ↔ BD09）。
