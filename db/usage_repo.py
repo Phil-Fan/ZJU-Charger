@@ -155,14 +155,10 @@ def batch_insert(data: Dict[str, Any], sheet_name: str) -> bool:
             ).execute()
             action = "更新/插入"
         else:
-            client.table(table_name).insert(
-                usage_records, returning=DEFAULT_RETURNING
-            ).execute()
+            client.table(table_name).insert(usage_records, returning=DEFAULT_RETURNING).execute()
             action = "插入"
 
-        logger.info(
-            f"成功批量 {action} {table_name} {len(usage_records)} 条记录。"
-        )
+        logger.info(f"成功批量 {action} {table_name} {len(usage_records)} 条记录。")
         return True
 
     except Exception as e:

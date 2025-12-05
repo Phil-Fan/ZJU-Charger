@@ -9,11 +9,16 @@ import logging
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
 logger.addHandler(logging.StreamHandler())
+
+
 class ElseProvider(ProviderBase):
     def __init__(self):
         super().__init__()
-        self.opentool_token = Config.get_provider_config_value("else_provider", "opentool_token", "")
+        self.opentool_token = Config.get_provider_config_value(
+            "else_provider", "opentool_token", ""
+        )
         logger.info(f"opentool_token: {self.opentool_token}")
+
     @property
     def provider(self) -> str:
         return "其他"
@@ -49,14 +54,14 @@ class ElseProvider(ProviderBase):
         elif station.provider == "多航科技":
             url = "https://mini.opencool.top/api/device.device/scan"
             headers = {
-                'Content-Type': "application/json",
-                'token': self.opentool_token,
+                "Content-Type": "application/json",
+                "token": self.opentool_token,
             }
             data = {
                 "sn": f"GD1B{device_id}",
                 "_sn": f"GD1B{device_id}",
                 "is_check": 0,
-                "new_rule": 1
+                "new_rule": 1,
             }
             try:
                 async with session.post(url, headers=headers, json=data) as resp:
@@ -64,7 +69,7 @@ class ElseProvider(ProviderBase):
                     data = resp_data.get("data", {})
                     # name = data.get("device_data", "").get("description", "")
                     port_list = data.get("port_list", [])
-                    
+
                     free = used = total = error = 0
                     for port in port_list:
                         if port.get("status_text") == "使用中":
