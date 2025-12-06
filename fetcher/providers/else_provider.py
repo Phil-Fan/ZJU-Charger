@@ -17,6 +17,9 @@ class ElseProvider(ProviderBase):
         self.opentool_token = Config.get_provider_config_value(
             "else_provider", "opentool_token", ""
         )
+        self.letfungo_token = Config.get_provider_config_value(
+            "else_provider", "letfungo_token", ""
+        )
 
     @property
     def provider(self) -> str:
@@ -46,19 +49,35 @@ class ElseProvider(ProviderBase):
             url = "https://api2.hzchaoxiang.cn/api-device/api/v1/scan/Index"
             try:
                 async with aiohttp.ClientSession() as session:
-                    async with session.post(url, data={'DeviceNumber': device_id}) as resp:
+                    async with session.post(url, data={"DeviceNumber": device_id}) as resp:
                         data = await resp.json()
-                device_ways = data.get('data', {}).get('DeviceWays', [])
-                sta = [way.get('State') for way in device_ways]
+                device_ways = data.get("data", {}).get("DeviceWays", [])
+                sta = [way.get("State") for way in device_ways]
                 free = sta.count(1)
                 used = sta.count(2)
-                return {"total": len(device_ways), "free": free, "used": used, "error": len(device_ways)-free-used}, None
+                return {
+                    "total": len(device_ways),
+                    "free": free,
+                    "used": used,
+                    "error": len(device_ways) - free - used,
+                }, None
             except Exception as exc:
                 return {"total": 0, "free": 0, "used": 0, "error": 0}, exc
         elif station.provider == "河狸物联":
             return {"total": 0, "free": 0, "used": 0, "error": 0}, None
         elif station.provider == "电动车充电网":
-            return {"total": 0, "free": 0, "used": 0, "error": 0}, None
+            url = "https://app.letfungo.com/api/cabinet/getSiteDetail2"
+            params = {"siteId": device_id, "token": self.letfungo_token}
+            try:
+                async with aiohttp.ClientSession() as session:
+                    async with session.post(url, params=params) as resp:
+                        data = await resp.json(content_type=None)
+                device = data.get("data", {})
+                used = device.get("charger_false")
+                free = device.get("charger_true")
+                return {"total": free + used, "free": free, "used": used, "error": 0}, None
+            except Exception:
+                return {"total": 0, "free": 0, "used": 0, "error": 0}, None
         elif station.provider == "多航科技":
             url = "https://mini.opencool.top/api/device.device/scan"
             headers = {
