@@ -42,10 +42,19 @@ class ElseProvider(ProviderBase):
     ) -> Tuple[Optional[Dict[str, Any]], Optional[Exception]]:
         if station.provider == "万充科技":
             return {"total": 0, "free": 0, "used": 0, "error": 0}, None
-        elif station.provider == "点点畅行":
-            return {"total": 0, "free": 0, "used": 0, "error": 0}, None
         elif station.provider == "超翔科技":
-            return {"total": 0, "free": 0, "used": 0, "error": 0}, None
+            url = "https://api2.hzchaoxiang.cn/api-device/api/v1/scan/Index"
+            try:
+                async with aiohttp.ClientSession() as session:
+                    async with session.post(url, data={'DeviceNumber': device_id}) as resp:
+                        data = await resp.json()
+                device_ways = data.get('data', {}).get('DeviceWays', [])
+                sta = [way.get('State') for way in device_ways]
+                free = sta.count(1)
+                used = sta.count(2)
+                return {"total": len(device_ways), "free": free, "used": used, "error": len(device_ways)-free-used}, None
+            except Exception as exc:
+                return {"total": 0, "free": 0, "used": 0, "error": 0}, exc
         elif station.provider == "河狸物联":
             return {"total": 0, "free": 0, "used": 0, "error": 0}, None
         elif station.provider == "电动车充电网":
