@@ -17,7 +17,6 @@ class ElseProvider(ProviderBase):
         self.opentool_token = Config.get_provider_config_value(
             "else_provider", "opentool_token", ""
         )
-        logger.info(f"opentool_token: {self.opentool_token}")
 
     @property
     def provider(self) -> str:

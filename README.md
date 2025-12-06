@@ -1,4 +1,4 @@
-# <img src="assets/logo_white.png" alt="logo" width="30"> 𝐙𝐉𝐔 𝐂𝐡𝐚𝐫𝐠𝐞𝐫
+# <img src="assets/logo_white.png" alt="logo" width="30"> 𝐙𝐉𝐔 𝐂𝐡𝐚𝐫𝐠𝐞𝐫 | 便捷高效的充电桩查询助手
 
 ![Star Badge](https://img.shields.io/github/stars/Phil-Fan/ZJU-Charger?style=social) ![License Badge](https://img.shields.io/github/license/Phil-Fan/ZJU-Charger) ![Contributors Badge](https://img.shields.io/github/contributors/Phil-Fan/ZJU-Charger) ![Issues Badge](https://img.shields.io/github/issues/Phil-Fan/ZJU-Charger) ![Pull Requests Badge](https://img.shields.io/github/issues-pr/Phil-Fan/ZJU-Charger) ![Last Commit Badge](https://img.shields.io/github/last-commit/Phil-Fan/ZJU-Charger) ![Code Size Badge](https://img.shields.io/github/languages/code-size/Phil-Fan/ZJU-Charger)
 
@@ -19,7 +19,8 @@ ZJU Charger 基于 FastAPI 开发，瞄准**校内充电桩不好找、供应商
 
 ## News
 
-- 2025.12.02 - 重构前端 UI 支持尼普顿智慧生活公众号查询
+- 2025.12.05 - 支持堕落街服务商，校准并支持西溪校区站点；最新介绍推文详见 [ZJU Charger:便捷高效的充电桩查询助手](https://mp.weixin.qq.com/s/fh2EriLV7aPlDiwghRCwzw)
+- 2025.12.02 - 重构前端 UI 并支持尼普顿智慧生活公众号查询
 - 2025.11.30 - GitHub 达到 50 Star，感谢支持！[校内公众号宣传贴](https://mp.weixin.qq.com/s/8tX1yHx_uvv64XQashPpTA)
 - 2025.12.01 - 支持 iOS 快捷指令，增加华家池校区 [CC98 宣传贴](https://www.cc98.org/topic/6359446)（十大）
 - 2025.11.29 - 完成后端页面开发，网站上线 [CC98 宣传贴](https://www.cc98.org/topic/6357576)（十大第一）
@@ -31,22 +32,22 @@ ZJU Charger 基于 FastAPI 开发，瞄准**校内充电桩不好找、供应商
 
 Next.js 框架开发：App Router + TypeScript + shadcn/ui, 开源在 [Phil-Fan/zju-charger-frontend](https://github.com/Phil-Fan/zju-charger-frontend) 这个仓库。
 
-- [x] Apache ECharts + `echarts-extension-amap` 提供高德地图服务。
-- [x] 支持三校区地图切换/服务商筛选。。
+- [x] 校区切换：点击校区卡片切换校区，不同校区信息一键查询。
   ![campus_01](assets/campus_01.png)
   ![campus_02](assets/campus_02.png)
   ![campus_03](assets/campus_03.png)
-- [x] 绿/橙/红三色编码空闲、紧张、故障状态。
-- [x] 双击站点打开导航卡片，支持高德地图和系统地图。
+- [x] 站点排序：开启定位后，实时显示站点距离，可按照距离优先或者空闲数量优先对站点进行排序。
+  ![sort](assets/sort.png)
+- [x] 站点导航：长按或双击地图站点可选择导航，一键跳转到高德/系统地图 APP，找到充电桩不再困难。
   ![navigate](assets/navigate.png)
-- [x] 支持实时定位，开启后持续追踪浏览器坐标、绘制用户标记。
-- [x] 关注列表通过 localStorage 实现。
+- [x] 站点关注：常去某站点？点击星标关注站点，显示并保存在列表最上方。通过 localStorage 实现。
   ![watchlist](assets/watchlist.png)
-- [x] 界面与地图同时支持暗黑模式。
+- [x] 明暗切换：点击右上角按钮切换颜色模式，明暗样式任你选择。
   ![light](assets/web_light.png)
   ![dark](assets/web_dark.png)
 - [x] 前端定时自动刷新。
 - [x] 夜间提示。
+- [x] 绿/橙/红三色编码空闲、紧张、故障状态。
 
 ### 后端功能
 
